@@ -107,10 +107,15 @@ export function LocationMap({ location }: LocationMapProps) {
                 </div>
               </div>
               
-              <button className="px-6 bg-slate-900/90 backdrop-blur-xl border border-slate-800/50 hover:border-indigo-500/50 rounded-xl transition flex items-center gap-2 text-sm font-medium">
+              <a 
+                href={`https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-6 bg-slate-900/90 backdrop-blur-xl border border-slate-800/50 hover:border-indigo-500/50 rounded-xl transition flex items-center gap-2 text-sm font-medium"
+              >
                 <ExternalLink className="size-4" />
                 Open Maps
-              </button>
+              </a>
             </div>
             
             {/* Bottom info bar */}
