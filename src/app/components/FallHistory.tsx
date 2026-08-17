@@ -11,12 +11,15 @@ interface FallEvent {
   contactNotified?: string;
 }
 
-export function FallHistory() {
+interface FallHistoryProps {
+  deviceId: string;
+}
+
+export function FallHistory({ deviceId }: FallHistoryProps) {
   const [fallEvents, setFallEvents] = useState<FallEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const deviceId = "device_001"; // Generic device ID for demo
     const eventsRef = ref(db, `events/${deviceId}`);
     
     const unsubscribe = onValue(eventsRef, (snapshot) => {
@@ -45,8 +48,8 @@ export function FallHistory() {
       {/* Header with Export */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold mb-1">Incident History</h2>
-          <p className="text-sm text-slate-400">Comprehensive fall detection records</p>
+          <h2 className="text-2xl font-semibold mb-1 text-foreground">Incident History</h2>
+          <p className="text-sm text-muted-foreground">Comprehensive fall detection records</p>
         </div>
         <button 
           onClick={() => {
@@ -61,7 +64,7 @@ export function FallHistory() {
             link.click();
             document.body.removeChild(link);
           }}
-          className="flex items-center gap-2 px-5 py-2.5 bg-slate-800/50 border border-slate-700/50 hover:border-indigo-500/50 rounded-xl transition"
+          className="flex items-center gap-2 px-5 py-2.5 bg-card border border-border hover:border-primary/50 hover:bg-muted rounded-xl transition text-foreground font-medium text-sm shadow-sm"
         >
           <Download className="size-4" />
           <span>Export Report</span>
@@ -70,140 +73,127 @@ export function FallHistory() {
       
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="relative group">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 rounded-2xl blur-xl opacity-50 group-hover:opacity-100 transition"></div>
-          <div className="relative bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-3 bg-emerald-500/10 rounded-xl">
-                <CheckCircle className="size-6 text-emerald-400" />
-              </div>
-              <span className="text-xs px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg">All Time</span>
+        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-3 bg-success/10 rounded-xl">
+              <CheckCircle className="size-6 text-success" />
             </div>
-            <p className="text-3xl font-bold mb-1">{fallEvents.length}</p>
-            <p className="text-sm text-slate-400">Total Incidents</p>
+            <span className="text-xs px-2 py-1 bg-success/10 text-success rounded-lg font-medium">All Time</span>
           </div>
+          <p className="text-3xl font-bold mb-1 text-foreground">{fallEvents.filter(e => e.status !== 'cancelled' && e.status !== 'emergency').length}</p>
+          <p className="text-sm text-muted-foreground">Total Falls</p>
         </div>
         
-        <div className="relative group">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-2xl blur-xl opacity-50 group-hover:opacity-100 transition"></div>
-          <div className="relative bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-3 bg-blue-500/10 rounded-xl">
-                <Clock className="size-6 text-blue-400" />
-              </div>
-              <span className="text-xs px-2 py-1 bg-blue-500/10 text-blue-400 rounded-lg">Average</span>
+        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-3 bg-primary/10 rounded-xl">
+              <Clock className="size-6 text-primary" />
             </div>
-            <p className="text-3xl font-bold mb-1">5 min</p>
-            <p className="text-sm text-slate-400">Response Time</p>
+            <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-lg font-medium">Average</span>
           </div>
+          <p className="text-3xl font-bold mb-1 text-foreground">5 min</p>
+          <p className="text-sm text-muted-foreground">Response Time</p>
         </div>
         
-        <div className="relative group">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-2xl blur-xl opacity-50 group-hover:opacity-100 transition"></div>
-          <div className="relative bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-3 bg-purple-500/10 rounded-xl">
-                <AlertTriangle className="size-6 text-purple-400" />
-              </div>
-              <span className="text-xs px-2 py-1 bg-purple-500/10 text-purple-400 rounded-lg">March 2026</span>
+        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-3 bg-destructive/10 rounded-xl">
+              <AlertTriangle className="size-6 text-destructive" />
             </div>
-            <p className="text-3xl font-bold mb-1">1</p>
-            <p className="text-sm text-slate-400">This Month</p>
+            <span className="text-xs px-2 py-1 bg-destructive/10 text-destructive rounded-lg font-medium">March 2026</span>
           </div>
+          <p className="text-3xl font-bold mb-1 text-foreground">1</p>
+          <p className="text-sm text-muted-foreground">This Month</p>
         </div>
       </div>
       
       {/* Timeline */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/5 to-purple-500/5 rounded-2xl blur-2xl"></div>
+      <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+        <h3 className="text-lg font-semibold mb-6 text-foreground">Event Timeline</h3>
         
-        <div className="relative bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6">
-          <h3 className="text-lg font-semibold mb-6">Event Timeline</h3>
-          
-          <div className="space-y-4">
-            {fallEvents.map((event, index) => (
-              <div key={event.id} className="relative group">
-                {/* Connector line */}
-                {index < fallEvents.length - 1 && (
-                  <div className="absolute left-[22px] top-12 bottom-0 w-px bg-gradient-to-b from-slate-700 to-transparent"></div>
-                )}
-                
-                <div className="relative bg-slate-800/30 border border-slate-700/50 rounded-xl p-5 hover:border-indigo-500/30 transition-all duration-200 hover:bg-slate-800/50">
-                  <div className="flex items-start gap-4">
-                    {/* Status Icon */}
-                    <div className={`relative flex-shrink-0 p-2.5 rounded-lg ${
-                      event.status === 'resolved' ? 'bg-emerald-500/10' : 
-                      event.status === 'confirmed' ? 'bg-blue-500/10' : 
-                      event.status === 'cancelled' ? 'bg-slate-500/10' : 
-                      event.status === 'pending' ? 'bg-amber-500/10' : 
-                      'bg-red-500/10'
-                    }`}>
-                      {event.status === 'resolved' ? (
-                        <CheckCircle className="size-5 text-emerald-400" />
-                      ) : event.status === 'confirmed' ? (
-                        <CheckCircle className="size-5 text-blue-400" />
-                      ) : event.status === 'cancelled' ? (
-                        <AlertTriangle className="size-5 text-slate-400" />
-                      ) : event.status === 'pending' ? (
-                        <Clock className="size-5 text-amber-400" />
-                      ) : (
-                        <AlertTriangle className="size-5 text-red-400" />
-                      )}
+        <div className="space-y-4">
+          {fallEvents.map((event, index) => (
+            <div key={event.id} className="relative group">
+              {/* Connector line */}
+              {index < fallEvents.length - 1 && (
+                <div className="absolute left-[22px] top-12 bottom-0 w-px bg-border"></div>
+              )}
+              
+              <div className="relative bg-background border border-border rounded-xl p-5 hover:border-primary/30 transition-all duration-200 hover:shadow-sm">
+                <div className="flex items-start gap-4">
+                  {/* Status Icon */}
+                  <div className={`relative flex-shrink-0 p-2.5 rounded-lg ${
+                    event.status === 'resolved' ? 'bg-success/10' : 
+                    event.status === 'confirmed' ? 'bg-primary/10' : 
+                    event.status === 'cancelled' ? 'bg-muted' : 
+                    event.status === 'pending' ? 'bg-warning/10' : 
+                    'bg-destructive/10'
+                  }`}>
+                    {event.status === 'resolved' ? (
+                      <CheckCircle className="size-5 text-success" />
+                    ) : event.status === 'confirmed' ? (
+                      <CheckCircle className="size-5 text-primary" />
+                    ) : event.status === 'cancelled' ? (
+                      <AlertTriangle className="size-5 text-muted-foreground" />
+                    ) : event.status === 'pending' ? (
+                      <Clock className="size-5 text-warning" />
+                    ) : (
+                      <AlertTriangle className="size-5 text-destructive" />
+                    )}
+                  </div>
+                  
+                  {/* Content */}
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <p className="font-semibold mb-1 text-foreground">Fall Detected</p>
+                        <p className="text-sm text-muted-foreground">{event.timestamp.toLocaleString()}</p>
+                      </div>
+                      <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                        event.status === 'resolved' ? 'bg-success/10 text-success' : 
+                        event.status === 'confirmed' ? 'bg-primary/10 text-primary' : 
+                        event.status === 'cancelled' ? 'bg-muted text-muted-foreground' : 
+                        event.status === 'pending' ? 'bg-warning/10 text-warning' : 
+                        'bg-destructive/10 text-destructive'
+                      }`}>
+                        {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+                      </span>
                     </div>
                     
-                    {/* Content */}
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <p className="font-semibold mb-1">Fall Detected</p>
-                          <p className="text-sm text-slate-400">{event.timestamp.toLocaleString()}</p>
-                        </div>
-                        <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                          event.status === 'resolved' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 
-                          event.status === 'confirmed' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 
-                          event.status === 'cancelled' ? 'bg-slate-500/10 text-slate-400 border border-slate-500/20' : 
-                          event.status === 'pending' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 
-                          'bg-red-500/10 text-red-400 border border-red-500/20'
-                        }`}>
-                          {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
-                        </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg">
+                        <MapPin className="size-4 text-muted-foreground flex-shrink-0" />
+                        <span className="text-xs text-foreground truncate">{event.location}</span>
                       </div>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="flex items-center gap-2 px-3 py-2 bg-slate-900/50 rounded-lg">
-                          <MapPin className="size-4 text-slate-400 flex-shrink-0" />
-                          <span className="text-xs text-slate-300 truncate">{event.location}</span>
+                      {event.responseTime && (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg">
+                          <Clock className="size-4 text-muted-foreground flex-shrink-0" />
+                          <span className="text-xs text-foreground">{event.responseTime}</span>
                         </div>
-                        {event.responseTime && (
-                          <div className="flex items-center gap-2 px-3 py-2 bg-slate-900/50 rounded-lg">
-                            <Clock className="size-4 text-slate-400 flex-shrink-0" />
-                            <span className="text-xs text-slate-300">{event.responseTime}</span>
-                          </div>
-                        )}
-                        {event.contactNotified && (
-                          <div className="flex items-center gap-2 px-3 py-2 bg-slate-900/50 rounded-lg">
-                            <Phone className="size-4 text-slate-400 flex-shrink-0" />
-                            <span className="text-xs text-slate-300 truncate">{event.contactNotified}</span>
-                          </div>
-                        )}
-                      </div>
+                      )}
+                      {event.contactNotified && (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg">
+                          <Phone className="size-4 text-muted-foreground flex-shrink-0" />
+                          <span className="text-xs text-foreground truncate">{event.contactNotified}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-          
-          {fallEvents.length === 0 && (
-            <div className="text-center py-16">
-              <div className="inline-flex p-6 bg-slate-800/30 rounded-2xl mb-4">
-                <CheckCircle className="size-12 text-slate-600" />
-              </div>
-              <p className="text-slate-400">No incidents recorded</p>
-              <p className="text-sm text-slate-500 mt-2">All systems operational</p>
             </div>
-          )}
+          ))}
         </div>
+        
+        {fallEvents.length === 0 && (
+          <div className="text-center py-16">
+            <div className="inline-flex p-6 bg-muted rounded-2xl mb-4">
+              <CheckCircle className="size-12 text-muted-foreground" />
+            </div>
+            <p className="text-foreground font-medium">No incidents recorded</p>
+            <p className="text-sm text-muted-foreground mt-2">All systems operational</p>
+          </div>
+        )}
       </div>
     </div>
   );

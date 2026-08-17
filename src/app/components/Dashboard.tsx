@@ -1,16 +1,20 @@
-import { useState, useEffect } from 'react';
-import { MapPin, Activity, Bell, LogOut, User, Phone, AlertTriangle, CheckCircle, Battery, Wifi, TrendingUp } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { MapPin, Activity, Bell, LogOut, User, Phone, AlertTriangle, CheckCircle, Battery, Wifi, TrendingUp, Edit2, Plus, Minus, X, PhoneCall, XCircle, Clock, Volume2, VolumeX, Navigation } from 'lucide-react';
 import { LocationMap } from './LocationMap';
 import { FallHistory } from './FallHistory';
 import { DeviceStatus } from './DeviceStatus';
 import { EmergencyContacts } from './EmergencyContacts';
+import { JoinRequests } from './JoinRequests';
 import { db, ref, onValue, update, push, set } from '../../lib/db';
 
+import type { User as FirebaseUser } from 'firebase/auth';
+
 interface DashboardProps {
+  user: FirebaseUser;
   onLogout: () => void;
 }
 
-type TabType = 'map' | 'history' | 'device' | 'contacts';
+type TabType = 'map' | 'history' | 'device' | 'contacts' | 'join_requests';
 
 const fallbackDeviceData = {
   status: 'offline',
@@ -27,24 +31,74 @@ const fallbackDeviceData = {
   },
 };
 
-export function Dashboard({ onLogout }: DashboardProps) {
+export function Dashboard({ user, onLogout }: DashboardProps) {
   const [activeTab, setActiveTab] = useState<TabType>('map');
   const [deviceData, setDeviceData] = useState<any>(fallbackDeviceData);
   const [hasAlert, setHasAlert] = useState(false);
   const [incidentsCount, setIncidentsCount] = useState(0);
   
-  const deviceId = "device_001"; // Generic device ID for demo
+  const [familyId, setFamilyId] = useState<string | null>(null);
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+  const [loadingContext, setLoadingContext] = useState(true);
+  
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [adjustAmount, setAdjustAmount] = useState(0);
+
+  // Emergency alert state
+  const [alertTimestamp, setAlertTimestamp] = useState<Date | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [alarmMuted, setAlarmMuted] = useState(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const oscillatorRef = useRef<OscillatorNode | null>(null);
+  const gainRef = useRef<GainNode | null>(null);
+
+  // Fetch user's family and linked device
+  useEffect(() => {
+    if (!user) return;
+    
+    const userRef = ref(db, `users/${user.uid}`);
+    const unsubUser = onValue(userRef, (snapshot) => {
+      const userData = snapshot.val();
+      if (userData?.familyId) {
+        setFamilyId(userData.familyId);
+        
+        // Now fetch family to get deviceId
+        const famRef = ref(db, `families/${userData.familyId}`);
+        const unsubFam = onValue(famRef, (famSnap) => {
+          const famData = famSnap.val();
+          if (famData?.deviceId) {
+            setDeviceId(famData.deviceId);
+          }
+          setLoadingContext(false);
+        });
+        return () => unsubFam();
+      } else {
+        setLoadingContext(false);
+      }
+    });
+    
+    return () => unsubUser();
+  }, [user]);
   
   useEffect(() => {
+    if (!deviceId) return;
+    
     const deviceRef = ref(db, `devices/${deviceId}`);
     const unsubscribeDevice = onValue(deviceRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         setDeviceData((prev: any) => ({ ...prev, ...data }));
         if (data.status === 'FALL_DETECTED') {
+          if (!hasAlert) {
+            setAlertTimestamp(new Date());
+            setElapsedTime(0);
+            setAlarmMuted(false);
+          }
           setHasAlert(true);
         } else {
           setHasAlert(false);
+          setAlertTimestamp(null);
+          stopAlarm();
         }
       }
     });
@@ -53,7 +107,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
     const unsubscribeEvents = onValue(eventsRef, (snapshot) => {
       if (snapshot.exists()) {
         const events = snapshot.val();
-        setIncidentsCount(Object.keys(events).length);
+        const count = Object.values(events).filter((e: any) => 
+          e.status !== 'cancelled' && e.status !== 'emergency'
+        ).length;
+        setIncidentsCount(count);
       }
     });
     
@@ -61,15 +118,117 @@ export function Dashboard({ onLogout }: DashboardProps) {
       unsubscribeDevice();
       unsubscribeEvents();
     };
+  }, [deviceId]);
+
+  // --- Alarm audio via Web Audio API ---
+  const startAlarm = useCallback(() => {
+    if (audioContextRef.current) return;
+    try {
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = 880;
+      gain.gain.value = 0.15;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      // Create a pulsing siren effect
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      const duration = 60; // loop for 60 seconds
+      for (let t = 0; t < duration; t += 1) {
+        osc.frequency.setValueAtTime(880, ctx.currentTime + t);
+        osc.frequency.linearRampToValueAtTime(440, ctx.currentTime + t + 0.5);
+        osc.frequency.linearRampToValueAtTime(880, ctx.currentTime + t + 1);
+      }
+      osc.start();
+      audioContextRef.current = ctx;
+      oscillatorRef.current = osc;
+      gainRef.current = gain;
+    } catch (e) {
+      console.warn('Web Audio API not available:', e);
+    }
   }, []);
+
+  const stopAlarm = useCallback(() => {
+    if (oscillatorRef.current) {
+      try { oscillatorRef.current.stop(); } catch (e) { /* already stopped */ }
+      oscillatorRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    gainRef.current = null;
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    if (gainRef.current) {
+      if (alarmMuted) {
+        gainRef.current.gain.value = 0.15;
+      } else {
+        gainRef.current.gain.value = 0;
+      }
+    }
+    setAlarmMuted(prev => !prev);
+  }, [alarmMuted]);
+
+  // Start alarm when alert appears
+  useEffect(() => {
+    if (hasAlert) {
+      startAlarm();
+    } else {
+      stopAlarm();
+    }
+    return () => stopAlarm();
+  }, [hasAlert, startAlarm, stopAlarm]);
+
+  // Elapsed time counter
+  useEffect(() => {
+    if (!alertTimestamp) return;
+    const interval = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - alertTimestamp.getTime()) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [alertTimestamp]);
+
+  const formatElapsed = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
   
   const handleConfirmAlert = async () => {
     try {
       const deviceRef = ref(db, `devices/${deviceId}`);
       await update(deviceRef, { status: 'CONFIRMED_FALL' });
-      // The ESP32 listens to this or we log this, stopping SMS spam
-    } catch (err) {
-      console.error("Failed to confirm alert:", err);
+      stopAlarm();
+    } catch (error) {
+      console.error('Failed to confirm alert:', error);
+    }
+  };
+
+  const handleDismissAlert = async () => {
+    try {
+      const deviceRef = ref(db, `devices/${deviceId}`);
+      await update(deviceRef, { status: 'FALSE_ALARM' });
+      stopAlarm();
+      setHasAlert(false);
+      setAlertTimestamp(null);
+    } catch (error) {
+      console.error('Failed to dismiss alert:', error);
+    }
+  };
+
+  const handleAdjustIncidents = async () => {
+    if (!familyId || adjustAmount === 0) return;
+    try {
+      await update(ref(db, `families/${familyId}`), {
+        incidentsCount: Math.max(0, incidentsCount + adjustAmount)
+      });
+      setShowAdjustModal(false);
+      setAdjustAmount(0);
+    } catch (error) {
+      console.error("Error updating incident count:", error);
     }
   };
   
@@ -105,44 +264,52 @@ export function Dashboard({ onLogout }: DashboardProps) {
   };
   
   const resetStatus = () => {
+    if (!deviceId) return;
     const deviceRef = ref(db, `devices/${deviceId}`);
     update(deviceRef, { status: 'online' });
   };
   
-  const isDemo = import.meta.env.VITE_FIREBASE_API_KEY === "AIzaSyDummyKeyForDemoPurposesOnly123456" || !import.meta.env.VITE_FIREBASE_API_KEY;
-  
+  if (loadingContext) {
+    return <div className="size-full flex items-center justify-center bg-background text-foreground">Loading dashboard...</div>;
+  }
+
+  if (!deviceId) {
+    return (
+      <div className="size-full flex flex-col items-center justify-center bg-background text-foreground p-4 text-center">
+        <h2 className="text-xl font-bold mb-2">No Device Linked</h2>
+        <p className="text-muted-foreground mb-4">Your account is not linked to an active CareBeacon device yet.</p>
+        <button onClick={onLogout} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg">Sign Out</button>
+      </div>
+    );
+  }
+
   return (
-    <div className="size-full flex flex-col bg-slate-950 text-white">
+    <div className="size-full flex flex-col bg-background text-foreground">
       {/* Top Bar */}
-      <header className="relative border-b border-slate-800/50 backdrop-blur-xl">
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-900/50 to-slate-950/50"></div>
-        
-        <div className="relative px-4 md:px-8 py-5 flex flex-col md:flex-row items-center justify-between gap-4">
+      <header className="relative border-b border-border bg-card">
+        <div className="relative px-4 md:px-8 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
           {/* Left: Brand */}
           <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl blur opacity-50"></div>
-              <div className="relative p-2.5 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl">
-                <Activity className="size-5" strokeWidth={2} />
-              </div>
+            <div className="relative p-2.5 bg-primary/10 rounded-xl text-primary">
+              <Activity className="size-5" strokeWidth={2} />
             </div>
             <div>
-              <h1 className="text-lg font-semibold tracking-tight">CareBeacon</h1>
-              <p className="text-xs text-slate-400">{deviceData.user?.name || fallbackDeviceData.user.name}, {deviceData.user?.age || fallbackDeviceData.user.age}</p>
+              <h1 className="text-lg font-semibold tracking-tight text-foreground">CareBeacon</h1>
+              <p className="text-xs text-muted-foreground">{deviceData.user?.name || fallbackDeviceData.user.name}, {deviceData.user?.age || fallbackDeviceData.user.age}</p>
             </div>
           </div>
           
           {/* Right: Status & Actions */}
           <div className="flex flex-wrap items-center justify-center md:justify-end gap-4">
             {hasAlert && (
-              <div className="flex items-center gap-4 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-xl">
+              <div className="flex items-center gap-4 px-4 py-2 bg-destructive/10 border border-destructive/20 rounded-xl">
                 <div className="flex items-center gap-2">
-                  <AlertTriangle className="size-4 text-red-400 animate-pulse" />
-                  <span className="text-sm font-bold text-red-400 uppercase">UNCONFIRMED FALL</span>
+                  <AlertTriangle className="size-4 text-destructive animate-pulse" />
+                  <span className="text-sm font-bold text-destructive uppercase">UNCONFIRMED FALL</span>
                 </div>
                 <button 
                   onClick={handleConfirmAlert}
-                  className="flex items-center gap-1.5 px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition"
+                  className="flex items-center gap-1.5 px-3 py-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground text-xs font-medium rounded-lg transition"
                 >
                   <CheckCircle className="size-3" />
                   Confirm Alert
@@ -150,17 +317,17 @@ export function Dashboard({ onLogout }: DashboardProps) {
               </div>
             )}
             
-            <div className="flex items-center gap-3 px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-xl">
-              <div className={`size-2 rounded-full ${deviceData.status !== 'offline' ? 'bg-emerald-500 shadow-lg shadow-emerald-500/50' : 'bg-red-500'}`}></div>
-              <span className="text-sm font-medium capitalize text-slate-200">{deviceData.status}</span>
+            <div className="flex items-center gap-3 px-4 py-2 bg-card border border-border rounded-xl shadow-sm">
+              <div className={`size-2 rounded-full ${deviceData.status !== 'offline' ? 'bg-success' : 'bg-destructive'}`}></div>
+              <span className="text-sm font-medium capitalize text-foreground">{deviceData.status}</span>
             </div>
             
             <button
               onClick={onLogout}
-              className="p-2.5 hover:bg-slate-800/50 rounded-xl transition-colors border border-transparent hover:border-slate-700/50"
+              className="p-2.5 hover:bg-muted rounded-xl transition-colors text-muted-foreground hover:text-foreground"
               title="Logout"
             >
-              <LogOut className="size-4 text-slate-400" />
+              <LogOut className="size-4" />
             </button>
           </div>
         </div>
@@ -172,100 +339,68 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <div className="p-4 md:p-8">
             {/* Stats Overview */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <div className="relative group">
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 rounded-2xl blur-xl opacity-50 group-hover:opacity-100 transition"></div>
-                <div className="relative bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6 hover:border-emerald-500/30 transition">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-2.5 bg-emerald-500/10 rounded-xl">
-                      <Wifi className="size-5 text-emerald-400" />
-                    </div>
-                    <TrendingUp className="size-4 text-emerald-400" />
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2.5 bg-success/10 rounded-xl">
+                    <Wifi className="size-5 text-success" />
                   </div>
-                  <p className="text-slate-400 text-sm mb-1">Connection</p>
-                  <p className="text-2xl font-semibold text-white">Online</p>
+                  <TrendingUp className="size-4 text-success" />
                 </div>
+                <p className="text-muted-foreground text-sm mb-1">Connection</p>
+                <p className="text-2xl font-semibold text-foreground">Online</p>
               </div>
               
-              <div className="relative group">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-2xl blur-xl opacity-50 group-hover:opacity-100 transition"></div>
-                <div className="relative bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6 hover:border-blue-500/30 transition">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-2.5 bg-blue-500/10 rounded-xl">
-                      <Battery className="size-5 text-blue-400" />
-                    </div>
-                    <span className="text-xs text-slate-400">Good</span>
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2.5 bg-primary/10 rounded-xl">
+                    <Battery className="size-5 text-primary" />
                   </div>
-                  <p className="text-slate-400 text-sm mb-1">Battery</p>
-                  <p className="text-2xl font-semibold text-white">{Math.round(deviceData.battery)}%</p>
+                  <span className="text-xs text-muted-foreground">Good</span>
                 </div>
+                <p className="text-muted-foreground text-sm mb-1">Battery</p>
+                <p className="text-2xl font-semibold text-foreground">{Math.round(deviceData.battery)}%</p>
               </div>
               
-              <div className="relative group">
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-2xl blur-xl opacity-50 group-hover:opacity-100 transition"></div>
-                <div className="relative bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6 hover:border-purple-500/30 transition">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-2.5 bg-purple-500/10 rounded-xl">
-                      <Bell className="size-5 text-purple-400" />
-                    </div>
-                    <span className="text-xs text-emerald-400">Low</span>
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2.5 bg-destructive/10 rounded-xl">
+                    <Bell className="size-5 text-destructive" />
                   </div>
-                  <p className="text-slate-400 text-sm mb-1">Incidents</p>
-                  <p className="text-2xl font-semibold text-white">{incidentsCount} Total</p>
+                  <button 
+                    onClick={() => setShowAdjustModal(true)} 
+                    className="p-1.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                    title="Adjust incident count"
+                  >
+                    <Edit2 className="size-4" />
+                  </button>
                 </div>
+                <p className="text-muted-foreground text-sm mb-1">Incidents</p>
+                <p className="text-2xl font-semibold text-foreground">{incidentsCount}</p>
               </div>
               
-              <div className="relative group">
-                <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-orange-500/10 rounded-2xl blur-xl opacity-50 group-hover:opacity-100 transition"></div>
-                <div className="relative bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6 hover:border-amber-500/30 transition">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-2.5 bg-amber-500/10 rounded-xl">
-                      <Phone className="size-5 text-amber-400" />
-                    </div>
-                    <span className="text-xs text-slate-400">Active</span>
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2.5 bg-warning/10 rounded-xl">
+                    <Phone className="size-5 text-warning" />
                   </div>
-                  <p className="text-slate-400 text-sm mb-1">Contacts</p>
-                  <p className="text-2xl font-semibold text-white">3</p>
+                  <span className="text-xs text-muted-foreground">Active</span>
                 </div>
+                <p className="text-muted-foreground text-sm mb-1">Contacts</p>
+                <p className="text-2xl font-semibold text-foreground">3</p>
               </div>
             </div>
             
-            {/* Simulation Panel */}
-            {isDemo && (
-              <div className="mb-8 p-6 bg-slate-900/50 backdrop-blur-sm border border-indigo-500/30 rounded-2xl">
-                <div className="flex items-center gap-2 mb-4">
-                  <Activity className="size-5 text-indigo-400" />
-                  <h3 className="text-lg font-semibold text-white">Device Simulator (Demo Mode)</h3>
-                </div>
-                <div className="flex flex-wrap gap-4">
-                  <button onClick={simulateFall} className="px-4 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50 rounded-xl transition font-medium text-sm">
-                    Simulate Fall
-                  </button>
-                  <button onClick={simulateSOS} className="px-4 py-2 bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/50 rounded-xl transition font-medium text-sm">
-                    Simulate SOS
-                  </button>
-                  <button onClick={simulateBatteryDrop} className="px-4 py-2 bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-600 rounded-xl transition font-medium text-sm">
-                    Drop Battery 10%
-                  </button>
-                  <button onClick={resetStatus} className="px-4 py-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/50 rounded-xl transition font-medium text-sm">
-                    Reset Status
-                  </button>
-                </div>
-              </div>
-            )}
             
             {/* Navigation Pills */}
-            <div className="flex gap-2 mb-8 p-1.5 bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl w-fit">
+            <div className="flex gap-2 mb-8 p-1.5 bg-muted rounded-2xl w-fit">
               <button
                 onClick={() => setActiveTab('map')}
-                className={`relative px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
+                className={`relative px-6 py-2.5 rounded-xl font-medium transition-all duration-200 text-sm ${
                   activeTab === 'map'
-                    ? 'text-white'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-card text-foreground shadow-sm border border-border'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {activeTab === 'map' && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl"></div>
-                )}
                 <span className="relative flex items-center gap-2">
                   <MapPin className="size-4" />
                   Live Location
@@ -274,15 +409,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
               
               <button
                 onClick={() => setActiveTab('history')}
-                className={`relative px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
+                className={`relative px-6 py-2.5 rounded-xl font-medium transition-all duration-200 text-sm ${
                   activeTab === 'history'
-                    ? 'text-white'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-card text-foreground shadow-sm border border-border'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {activeTab === 'history' && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl"></div>
-                )}
                 <span className="relative flex items-center gap-2">
                   <Bell className="size-4" />
                   Fall History
@@ -291,15 +423,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
               
               <button
                 onClick={() => setActiveTab('device')}
-                className={`relative px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
+                className={`relative px-6 py-2.5 rounded-xl font-medium transition-all duration-200 text-sm ${
                   activeTab === 'device'
-                    ? 'text-white'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-card text-foreground shadow-sm border border-border'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {activeTab === 'device' && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl"></div>
-                )}
                 <span className="relative flex items-center gap-2">
                   <Activity className="size-4" />
                   Device Status
@@ -308,30 +437,209 @@ export function Dashboard({ onLogout }: DashboardProps) {
               
               <button
                 onClick={() => setActiveTab('contacts')}
-                className={`relative px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
+                className={`relative px-6 py-2.5 rounded-xl font-medium transition-all duration-200 text-sm ${
                   activeTab === 'contacts'
-                    ? 'text-white'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-card text-foreground shadow-sm border border-border'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {activeTab === 'contacts' && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl"></div>
-                )}
                 <span className="relative flex items-center gap-2">
                   <Phone className="size-4" />
                   Contacts
                 </span>
               </button>
+              
+              <button
+                onClick={() => setActiveTab('join_requests')}
+                className={`relative px-6 py-2.5 rounded-xl font-medium transition-all duration-200 text-sm ${
+                  activeTab === 'join_requests'
+                    ? 'bg-card text-foreground shadow-sm border border-border'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <span className="relative flex items-center gap-2">
+                  <User className="size-4" />
+                  Join Requests
+                </span>
+              </button>
             </div>
             
             {/* Content */}
-            {activeTab === 'map' && <LocationMap location={deviceData.location} />}
-            {activeTab === 'history' && <FallHistory />}
-            {activeTab === 'device' && <DeviceStatus deviceData={deviceData} />}
-            {activeTab === 'contacts' && <EmergencyContacts />}
+            {activeTab === 'map' && <LocationMap deviceId={deviceId} />}
+            {activeTab === 'history' && <FallHistory deviceId={deviceId} />}
+            {activeTab === 'device' && <DeviceStatus deviceId={deviceId} />}
+            {activeTab === 'contacts' && familyId && <EmergencyContacts familyId={familyId} />}
+            {activeTab === 'join_requests' && familyId && <JoinRequests familyId={familyId} />}
           </div>
         </main>
       </div>
+
+      {/* Adjust Incident Count Modal */}
+      {showAdjustModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center p-4 border-b border-border bg-muted/30">
+              <h3 className="font-semibold text-foreground">Adjust Incident Count</h3>
+              <button 
+                onClick={() => { setShowAdjustModal(false); setAdjustAmount(0); }}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <p className="text-sm text-muted-foreground mb-6">
+                If a false alarm was recorded, you can manually offset the total incident count here. 
+                Current count: <strong className="text-foreground">{incidentsCount}</strong>
+              </p>
+              
+              <div className="flex items-center justify-center gap-6 mb-8">
+                <button 
+                  onClick={() => setAdjustAmount(prev => prev - 1)}
+                  className="p-3 bg-muted hover:bg-muted/80 text-foreground rounded-full transition-colors"
+                >
+                  <Minus className="size-5" />
+                </button>
+                <span className="text-3xl font-bold w-12 text-center text-foreground">
+                  {adjustAmount > 0 ? '+' : ''}{adjustAmount}
+                </span>
+                <button 
+                  onClick={() => setAdjustAmount(prev => prev + 1)}
+                  className="p-3 bg-muted hover:bg-muted/80 text-foreground rounded-full transition-colors"
+                >
+                  <Plus className="size-5" />
+                </button>
+              </div>
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => { setShowAdjustModal(false); setAdjustAmount(0); }}
+                  className="flex-1 px-4 py-2 bg-muted border border-border rounded-xl text-foreground font-medium hover:bg-muted/80 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleAdjustIncidents}
+                  disabled={adjustAmount === 0}
+                  className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Apply {adjustAmount > 0 ? '+' : ''}{adjustAmount === 0 ? '' : adjustAmount}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== FULL-SCREEN EMERGENCY ALERT OVERLAY ===== */}
+      {hasAlert && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center" style={{ animation: 'emergencyPulse 2s ease-in-out infinite' }}>
+          {/* Backdrop with pulsing red */}
+          <div className="absolute inset-0 bg-gradient-to-b from-red-950/95 via-red-900/95 to-red-950/95 backdrop-blur-md" />
+          
+          {/* Animated ring effect */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="size-[600px] rounded-full border-2 border-red-500/20" style={{ animation: 'pingRing 3s cubic-bezier(0, 0, 0.2, 1) infinite' }} />
+            <div className="absolute size-[400px] rounded-full border-2 border-red-500/30" style={{ animation: 'pingRing 3s cubic-bezier(0, 0, 0.2, 1) infinite 0.5s' }} />
+            <div className="absolute size-[200px] rounded-full border-2 border-red-500/40" style={{ animation: 'pingRing 3s cubic-bezier(0, 0, 0.2, 1) infinite 1s' }} />
+          </div>
+
+          {/* Content */}
+          <div className="relative z-10 max-w-lg w-full mx-4 text-center space-y-8">
+            {/* Emergency icon */}
+            <div className="flex justify-center">
+              <div className="relative">
+                <div className="size-24 rounded-full bg-red-500/20 flex items-center justify-center" style={{ animation: 'emergencyBounce 1s ease-in-out infinite' }}>
+                  <AlertTriangle className="size-12 text-red-400" />
+                </div>
+                {/* Pulsing ring around icon */}
+                <div className="absolute -inset-3 rounded-full border-2 border-red-400/50 animate-ping" />
+              </div>
+            </div>
+            
+            {/* Title */}
+            <div>
+              <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight mb-2">
+                FALL DETECTED
+              </h1>
+              <p className="text-red-200/80 text-lg">
+                {deviceData.user?.name || 'Unknown'} may need immediate help
+              </p>
+            </div>
+
+            {/* Info cards */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Elapsed time */}
+              <div className="bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl p-4">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Clock className="size-4 text-red-300" />
+                  <span className="text-xs text-red-300 font-medium uppercase tracking-wider">Time Elapsed</span>
+                </div>
+                <p className="text-3xl font-mono font-bold text-white">{formatElapsed(elapsedTime)}</p>
+              </div>
+              
+              {/* Location */}
+              <div className="bg-white/10 backdrop-blur-sm border border-white/10 rounded-2xl p-4">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Navigation className="size-4 text-red-300" />
+                  <span className="text-xs text-red-300 font-medium uppercase tracking-wider">Location</span>
+                </div>
+                <p className="text-sm text-white font-medium leading-snug truncate">
+                  {deviceData.location?.address || 'Fetching...'}
+                </p>
+                <p className="text-xs text-red-300/70 mt-1">
+                  {deviceData.location?.lat?.toFixed(4)}, {deviceData.location?.lng?.toFixed(4)}
+                </p>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="space-y-3">
+              <button
+                onClick={handleConfirmAlert}
+                className="w-full py-4 px-6 bg-red-500 hover:bg-red-400 text-white font-bold text-lg rounded-2xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg shadow-red-500/30 hover:shadow-red-400/40 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <PhoneCall className="size-6" />
+                Confirm Fall — Send Emergency Alert
+              </button>
+              
+              <button
+                onClick={handleDismissAlert}
+                className="w-full py-3 px-6 bg-white/10 hover:bg-white/20 text-white/80 hover:text-white font-medium rounded-2xl transition-all duration-200 flex items-center justify-center gap-2 border border-white/10"
+              >
+                <XCircle className="size-5" />
+                Mark as False Alarm
+              </button>
+            </div>
+
+            {/* Mute button */}
+            <button
+              onClick={toggleMute}
+              className="mx-auto flex items-center gap-2 px-4 py-2 text-sm text-red-300/70 hover:text-red-200 transition-colors"
+            >
+              {alarmMuted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
+              {alarmMuted ? 'Unmute Alarm' : 'Mute Alarm'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Emergency overlay animations */}
+      <style>{`
+        @keyframes emergencyPulse {
+          0%, 100% { background-color: rgba(127, 29, 29, 0); }
+          50% { background-color: rgba(127, 29, 29, 0.05); }
+        }
+        @keyframes pingRing {
+          0% { transform: scale(0.5); opacity: 0.8; }
+          100% { transform: scale(1.5); opacity: 0; }
+        }
+        @keyframes emergencyBounce {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.1); }
+        }
+      `}</style>
     </div>
   );
 }
