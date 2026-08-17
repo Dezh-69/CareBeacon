@@ -1,25 +1,36 @@
 import { useState, useEffect } from 'react';
-import { MapPin, Navigation, ExternalLink, Radio } from 'lucide-react';
-import { ImageWithFallback } from './figma/ImageWithFallback';
+import { MapPin, Navigation, ExternalLink, Radio, History } from 'lucide-react';
 import { db, ref, onValue } from '../../lib/db';
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix for default marker icons in Leaflet
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 interface LocationMapProps {
   deviceId: string;
 }
 
 export function LocationMap({ deviceId }: LocationMapProps) {
-  const mapUrl = `https://images.unsplash.com/photo-1764347923709-fc48487f2486?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxHUFMlMjBsb2NhdGlvbiUyMHRyYWNraW5nJTIwbWFwfGVufDF8fHx8MTc3NDQ1MjAzM3ww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral`;
-  
   const [location, setLocation] = useState({
     lat: 14.6042,
     lng: 120.9822,
     address: 'Fetching location...',
   });
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
+  const [history, setHistory] = useState<{lat: number, lng: number}[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     const locRef = ref(db, `devices/${deviceId}/location`);
     const timeRef = ref(db, `devices/${deviceId}/lastUpdate`);
+    const historyRef = ref(db, `locationHistory/${deviceId}`);
     
     const unsubLoc = onValue(locRef, (snap) => {
       if (snap.val()) setLocation(snap.val());
@@ -27,140 +38,89 @@ export function LocationMap({ deviceId }: LocationMapProps) {
     const unsubTime = onValue(timeRef, (snap) => {
       if (snap.val()) setLastUpdate(snap.val());
     });
+    const unsubHistory = onValue(historyRef, (snap) => {
+      if (snap.val()) {
+        const histData = snap.val();
+        // Extract array of coordinates
+        const points = Object.values(histData).map((p: any) => ({ lat: p.lat, lng: p.lng }));
+        setHistory(points);
+      }
+    });
     
-    return () => { unsubLoc(); unsubTime(); };
+    return () => {
+      unsubLoc();
+      unsubTime();
+      unsubHistory();
+    };
   }, [deviceId]);
-  
+
+  const mapCenter: [number, number] = [location.lat, location.lng];
+
   return (
-    <div className="space-y-6">
-      {/* Coordinates Grid */}
-      <div className="grid md:grid-cols-3 gap-4">
-        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow hover:border-primary/30">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-border bg-muted/30 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-primary/10 rounded-xl">
               <MapPin className="size-5 text-primary" />
             </div>
-            <span className="text-sm text-muted-foreground">Latitude</span>
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">Live Tracking</h2>
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <Radio className="size-3 text-emerald-500 animate-pulse" />
+                GPS Active • Last update: {lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : 'Unknown'}
+              </p>
+            </div>
           </div>
-          <p className="text-xl font-semibold font-mono text-foreground">{location.lat.toFixed(6)}</p>
+          
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              showHistory ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+            }`}
+          >
+            <History className="size-4" />
+            {showHistory ? 'Hide Breadcrumbs' : 'Show Breadcrumbs'}
+          </button>
         </div>
         
-        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow hover:border-primary/30">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <MapPin className="size-5 text-primary" />
-            </div>
-            <span className="text-sm text-muted-foreground">Longitude</span>
-          </div>
-          <p className="text-xl font-semibold font-mono text-foreground">{location.lng.toFixed(6)}</p>
-        </div>
-        
-        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow hover:border-success/30">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-success/10 rounded-lg">
-              <Navigation className="size-5 text-success" />
-            </div>
-            <span className="text-sm text-muted-foreground">Location</span>
-          </div>
-          <p className="text-sm font-medium text-foreground">{location.address}</p>
-        </div>
-      </div>
-      
-      {/* Map Display */}
-      <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-        <div className="relative h-[600px]">
-          <ImageWithFallback
-            src={mapUrl}
-            alt="Location Map"
-            className="w-full h-full object-cover"
-          />
-          
-          {/* Subtle gradient overlay to ensure text readability */}
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent"></div>
-          
-          {/* Location Marker */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="relative">
-              {/* Pulsing rings */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="size-32 bg-primary/20 rounded-full animate-ping"></div>
-              </div>
-              <div className="absolute inset-0 flex items-center justify-center" style={{ animationDelay: '0.5s' }}>
-                <div className="size-24 bg-primary/30 rounded-full animate-ping"></div>
-              </div>
-              
-              {/* Center marker */}
-              <div className="relative z-10">
-                <div className="relative p-4 bg-primary rounded-full shadow-lg border-4 border-background">
-                  <MapPin className="size-8 text-primary-foreground" />
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Top info bar */}
-          <div className="absolute top-6 left-6 right-6 flex gap-3">
-            <div className="flex-1 bg-card/90 backdrop-blur-xl border border-border rounded-xl p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Last Position Update</p>
-                  <p className="text-sm font-semibold text-foreground">{new Date().toLocaleTimeString()}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Radio className="size-4 text-success" />
-                  <span className="text-xs text-success font-medium">GPS Active</span>
-                </div>
-              </div>
-            </div>
-            
-            <a 
-              href={`https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}`}
+        <div className="relative h-[500px] w-full z-0">
+          <MapContainer center={mapCenter} zoom={15} className="h-full w-full" key={`${location.lat}-${location.lng}`}>
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            <Marker position={mapCenter}>
+              <Popup>
+                <strong>Current Location</strong><br/>
+                {location.address}
+              </Popup>
+            </Marker>
+            {showHistory && history.length > 1 && (
+              <Polyline positions={history} pathOptions={{ color: 'hsl(var(--primary))', weight: 4, dashArray: '5, 10' }} />
+            )}
+          </MapContainer>
+
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000]">
+            <a
+              href={`https://maps.google.com/?q=${location.lat},${location.lng}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-6 bg-card/90 backdrop-blur-xl border border-border hover:border-primary/50 hover:bg-muted rounded-xl transition flex items-center gap-2 text-sm font-medium text-foreground shadow-sm"
+              className="flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-full font-medium shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5"
             >
-              <ExternalLink className="size-4" />
-              Open Maps
+              <Navigation className="size-4" />
+              Open in Google Maps
+              <ExternalLink className="size-3 opacity-70" />
             </a>
-          </div>
-          
-          {/* Bottom info bar */}
-          <div className="absolute bottom-6 left-6 right-6">
-            <div className="bg-card/95 backdrop-blur-xl border border-border rounded-xl p-6 shadow-sm">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full border border-border mb-4 w-fit">
-                <span className="relative flex size-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                  <span className="relative inline-flex rounded-full size-2 bg-primary"></span>
-                </span>
-                Live Tracking Active {lastUpdate ? `• Last updated: ${new Date(lastUpdate).toLocaleTimeString()}` : ''}
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-primary/10 rounded-xl">
-                    <MapPin className="size-6 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Current Address</p>
-                    <p className="font-semibold text-foreground">{location.address}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground mb-1">Accuracy</p>
-                  <p className="text-sm font-semibold text-foreground">± 5 meters</p>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
         
-        <div className="p-4 bg-muted border-t border-border">
-          <p className="text-xs text-muted-foreground">
-            <strong className="text-foreground">Note:</strong> Production system integrates with Google Maps API for interactive mapping and route history.
-          </p>
+        <div className="p-4 bg-muted/30 border-t border-border flex items-start gap-3">
+          <MapPin className="size-5 text-muted-foreground shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-foreground">{location.address}</p>
+            <p className="text-xs text-muted-foreground mt-1">Coordinates: {location.lat.toFixed(6)}, {location.lng.toFixed(6)}</p>
+          </div>
         </div>
       </div>
     </div>

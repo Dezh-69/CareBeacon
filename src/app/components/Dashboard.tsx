@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MapPin, Activity, Bell, LogOut, User, Phone, AlertTriangle, CheckCircle, Battery, Wifi, TrendingUp, Edit2, Plus, Minus, X, PhoneCall, XCircle, Clock, Volume2, VolumeX, Navigation } from 'lucide-react';
+import { MapPin, Activity, Bell, LogOut, User, Phone, AlertTriangle, CheckCircle, Battery, Wifi, TrendingUp, Edit2, Plus, Minus, X, PhoneCall, XCircle, Clock, Volume2, VolumeX, Navigation, Calendar, BarChart3, AlertOctagon } from 'lucide-react';
 import { LocationMap } from './LocationMap';
 import { FallHistory } from './FallHistory';
 import { DeviceStatus } from './DeviceStatus';
 import { EmergencyContacts } from './EmergencyContacts';
 import { JoinRequests } from './JoinRequests';
+import { CaregiverSchedule } from './CaregiverSchedule';
+import { CaregiverAnalytics } from './CaregiverAnalytics';
 import { db, ref, onValue, update, push, set } from '../../lib/db';
 
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -14,7 +16,7 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-type TabType = 'map' | 'history' | 'device' | 'contacts' | 'join_requests';
+type TabType = 'map' | 'history' | 'device' | 'contacts' | 'join_requests' | 'schedule' | 'analytics';
 
 const fallbackDeviceData = {
   status: 'offline',
@@ -219,6 +221,10 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
     }
   };
 
+  // Determine proactive warnings
+  const isOffline = deviceData.lastUpdate ? (Date.now() - new Date(deviceData.lastUpdate).getTime() > 15 * 60 * 1000) : false;
+  const isLowBattery = deviceData.battery < 15;
+
   const handleAdjustIncidents = async () => {
     if (!familyId || adjustAmount === 0) return;
     try {
@@ -391,87 +397,140 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
             </div>
             
             
-            {/* Navigation Pills */}
-            <div className="flex gap-2 mb-8 p-1.5 bg-muted rounded-2xl w-fit">
-              <button
-                onClick={() => setActiveTab('map')}
-                className={`relative px-6 py-2.5 rounded-xl font-medium transition-all duration-200 text-sm ${
-                  activeTab === 'map'
-                    ? 'bg-card text-foreground shadow-sm border border-border'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <span className="relative flex items-center gap-2">
-                  <MapPin className="size-4" />
-                  Live Location
-                </span>
-              </button>
-              
-              <button
-                onClick={() => setActiveTab('history')}
-                className={`relative px-6 py-2.5 rounded-xl font-medium transition-all duration-200 text-sm ${
-                  activeTab === 'history'
-                    ? 'bg-card text-foreground shadow-sm border border-border'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <span className="relative flex items-center gap-2">
-                  <Bell className="size-4" />
-                  Fall History
-                </span>
-              </button>
-              
-              <button
-                onClick={() => setActiveTab('device')}
-                className={`relative px-6 py-2.5 rounded-xl font-medium transition-all duration-200 text-sm ${
-                  activeTab === 'device'
-                    ? 'bg-card text-foreground shadow-sm border border-border'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <span className="relative flex items-center gap-2">
-                  <Activity className="size-4" />
-                  Device Status
-                </span>
-              </button>
-              
-              <button
-                onClick={() => setActiveTab('contacts')}
-                className={`relative px-6 py-2.5 rounded-xl font-medium transition-all duration-200 text-sm ${
-                  activeTab === 'contacts'
-                    ? 'bg-card text-foreground shadow-sm border border-border'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <span className="relative flex items-center gap-2">
-                  <Phone className="size-4" />
-                  Contacts
-                </span>
-              </button>
-              
-              <button
-                onClick={() => setActiveTab('join_requests')}
-                className={`relative px-6 py-2.5 rounded-xl font-medium transition-all duration-200 text-sm ${
-                  activeTab === 'join_requests'
-                    ? 'bg-card text-foreground shadow-sm border border-border'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <span className="relative flex items-center gap-2">
-                  <User className="size-4" />
-                  Join Requests
-                </span>
-              </button>
-            </div>
-            
-            {/* Content */}
-            {activeTab === 'map' && <LocationMap deviceId={deviceId} />}
-            {activeTab === 'history' && <FallHistory deviceId={deviceId} />}
-            {activeTab === 'device' && <DeviceStatus deviceId={deviceId} />}
-            {activeTab === 'contacts' && familyId && <EmergencyContacts familyId={familyId} />}
-            {activeTab === 'join_requests' && familyId && <JoinRequests familyId={familyId} />}
           </div>
         </main>
+
+          {/* Sidebar Navigation */}
+          <nav className="w-56 border-r border-border bg-card px-4 py-6 space-y-6 overflow-y-auto shrink-0 hidden md:block">
+            <div>
+              <h3 className="px-2 text-xs font-medium text-muted-foreground mb-2">Monitoring</h3>
+              <ul className="space-y-1">
+                <li>
+                  <button
+                    onClick={() => setActiveTab('map')}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      activeTab === 'map' ? 'bg-secondary text-primary' : 'text-foreground hover:bg-secondary/50 hover:text-primary'
+                    }`}
+                  >
+                    <MapPin className="size-4" />
+                    Live Map
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => setActiveTab('history')}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      activeTab === 'history' ? 'bg-secondary text-primary' : 'text-foreground hover:bg-secondary/50 hover:text-primary'
+                    }`}
+                  >
+                    <Activity className="size-4" />
+                    Fall History
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => setActiveTab('analytics')}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      activeTab === 'analytics' ? 'bg-secondary text-primary' : 'text-foreground hover:bg-secondary/50 hover:text-primary'
+                    }`}
+                  >
+                    <BarChart3 className="size-4" />
+                    Analytics
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="px-2 text-xs font-medium text-muted-foreground mb-2">Device & Family</h3>
+              <ul className="space-y-1">
+                <li>
+                  <button
+                    onClick={() => setActiveTab('device')}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      activeTab === 'device' ? 'bg-secondary text-primary' : 'text-foreground hover:bg-secondary/50 hover:text-primary'
+                    }`}
+                  >
+                    <Battery className="size-4" />
+                    Device Status
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => setActiveTab('schedule')}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      activeTab === 'schedule' ? 'bg-secondary text-primary' : 'text-foreground hover:bg-secondary/50 hover:text-primary'
+                    }`}
+                  >
+                    <Calendar className="size-4" />
+                    Care Schedule
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => setActiveTab('contacts')}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      activeTab === 'contacts' ? 'bg-secondary text-primary' : 'text-foreground hover:bg-secondary/50 hover:text-primary'
+                    }`}
+                  >
+                    <Phone className="size-4" />
+                    Emergency Contacts
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => setActiveTab('join_requests')}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      activeTab === 'join_requests' ? 'bg-secondary text-primary' : 'text-foreground hover:bg-secondary/50 hover:text-primary'
+                    }`}
+                  >
+                    <User className="size-4" />
+                    Join Requests
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </nav>
+          
+          {/* Main Content Area */}
+          <main className="flex-1 flex flex-col overflow-hidden bg-background">
+            {/* Header */}
+            <header className="h-16 flex items-center justify-between px-8 border-b border-border bg-card shrink-0">
+              <h2 className="text-lg font-semibold text-foreground capitalize">
+                {activeTab === 'join_requests' ? 'Join Requests' : activeTab}
+              </h2>
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-muted-foreground hidden sm:inline-block">
+                  Monitoring {deviceData.user?.name || 'Unknown User'}
+                </span>
+              </div>
+            </header>
+
+            {/* Proactive Warnings */}
+            {!hasAlert && isOffline && (
+              <div className="bg-amber-500 text-amber-950 px-4 py-3 flex items-center justify-center gap-3 animate-in slide-in-from-top-2">
+                <AlertOctagon className="size-5" />
+                <p className="text-sm font-medium">Device is offline. It hasn't connected in over 15 minutes.</p>
+              </div>
+            )}
+            {!hasAlert && !isOffline && isLowBattery && (
+              <div className="bg-red-500 text-white px-4 py-3 flex items-center justify-center gap-3 animate-in slide-in-from-top-2">
+                <Battery className="size-5" />
+                <p className="text-sm font-medium">Device battery is critically low ({Math.round(deviceData.battery)}%). Please charge immediately.</p>
+              </div>
+            )}
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-8">
+              {activeTab === 'map' && <LocationMap deviceId={deviceId!} />}
+              {activeTab === 'history' && <FallHistory deviceId={deviceId!} />}
+              {activeTab === 'analytics' && <CaregiverAnalytics deviceId={deviceId!} />}
+              {activeTab === 'device' && <DeviceStatus deviceId={deviceId!} />}
+              {activeTab === 'schedule' && <CaregiverSchedule familyId={familyId!} />}
+              {activeTab === 'contacts' && <EmergencyContacts familyId={familyId!} />}
+              {activeTab === 'join_requests' && <JoinRequests familyId={familyId!} />}
+            </div>
+          </main>
       </div>
 
       {/* Adjust Incident Count Modal */}
