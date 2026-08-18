@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Shield, Check, X, Clock } from 'lucide-react';
 import { db, ref, onValue, update } from '../../lib/db';
 import { auth } from '../../lib/firebase';
-import { SkeletonList } from './ui/Skeleton';
+import { SkeletonList } from './ui/skeleton';
 
 interface JoinRequest {
   id: string;

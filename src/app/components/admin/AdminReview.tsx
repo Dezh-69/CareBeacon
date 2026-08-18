@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { AdminLayout } from "./AdminLayout";
 import { db, ref, onValue, update, push, set } from "../../../lib/db";
-import { SkeletonTable } from "../ui/Skeleton";
+import { SkeletonTable } from "../ui/skeleton";
 import { auth } from "../../../lib/firebase";
 import { CheckCircle, XCircle, Clock } from "lucide-react";
 

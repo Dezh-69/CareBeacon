@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { AdminLayout } from "./AdminLayout";
 import { StatusBadge } from "./StatusBadge";
 import { db, ref, onValue } from "../../../lib/db";
-import { SkeletonTable } from "../ui/Skeleton";
+import { SkeletonTable } from "../ui/skeleton";
 import { Search, Filter, Battery, Wifi, WifiOff } from "lucide-react";
 
 interface Device {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { db, ref, onValue, update } from "../../lib/db";
-import { SkeletonList } from "./ui/Skeleton";
+import { SkeletonList } from "./ui/skeleton";
 import { auth } from "../../lib/firebase";
 import { Calendar, Clock, User, ShieldCheck, ToggleRight, ToggleLeft } from "lucide-react";
 

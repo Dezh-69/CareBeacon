@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Battery, Wifi, Radio, Activity, Clock, MapPin, Cpu, Signal, Zap } from 'lucide-react';
 import { db, ref, onValue } from '../../lib/db';
-import { SkeletonCard } from './ui/Skeleton';
+import { SkeletonCard } from './ui/skeleton';
 
 interface DeviceStatusProps {
   deviceId: string;

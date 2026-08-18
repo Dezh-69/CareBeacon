@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { AdminLayout } from "./AdminLayout";
-import { db, ref, onValue, query, orderByChild, update } from "../../../lib/db";
-import { SkeletonTable } from "../ui/Skeleton";
+import { db, ref, onValue, update } from "../../../lib/db";
+import { query, orderByChild } from "firebase/database";
+import { SkeletonTable } from "../ui/skeleton";
 import { Search, Filter, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 
 interface Incident {

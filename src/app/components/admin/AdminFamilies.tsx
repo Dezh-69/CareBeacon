@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { AdminLayout } from "./AdminLayout";
 import { StatusBadge } from "./StatusBadge";
-import { SkeletonTable } from "../ui/Skeleton";
+import { SkeletonTable } from "../ui/skeleton";
 import { db, ref, onValue, push, set, update } from "../../../lib/db";
 import { auth } from "../../../lib/firebase";
 import { Search, Filter, Ban, ShieldCheck, PlusCircle } from "lucide-react";

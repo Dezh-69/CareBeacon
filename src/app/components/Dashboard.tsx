@@ -7,7 +7,7 @@ import { EmergencyContacts } from './EmergencyContacts';
 import { JoinRequests } from './JoinRequests';
 import { CaregiverSchedule } from './CaregiverSchedule';
 import { CaregiverAnalytics } from './CaregiverAnalytics';
-import { SkeletonPage } from './ui/Skeleton';
+import { SkeletonPage } from './ui/skeleton';
 import { db, ref, onValue, update, push, set } from '../../lib/db';
 
 import type { User as FirebaseUser } from 'firebase/auth';

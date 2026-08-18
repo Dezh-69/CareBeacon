@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { AdminLayout } from "./AdminLayout";
 import { db, ref, onValue, update } from "../../../lib/db";
-import { SkeletonTable } from "../ui/Skeleton";
+import { SkeletonTable } from "../ui/skeleton";
 import { Search, Filter, HelpCircle, MessageSquare } from "lucide-react";
 
 interface Ticket {

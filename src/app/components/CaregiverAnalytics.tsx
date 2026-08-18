@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { db, ref, onValue } from "../../lib/db";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
-import { SkeletonChart } from './ui/Skeleton';
+import { SkeletonChart } from './ui/skeleton';
 import { Activity, Battery, AlertTriangle, TrendingDown } from "lucide-react";
 
 interface CaregiverAnalyticsProps {

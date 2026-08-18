@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Shield, Clock, Search, MapPin, ExternalLink, Filter, Calendar, AlertTriangle, CheckCircle, Phone, Download } from 'lucide-react';
-import { db, ref, onValue, query, orderByChild } from '../../lib/db';
-import { SkeletonList } from './ui/Skeleton';
+import { db, ref, onValue } from '../../lib/db';
+import { query, orderByChild } from 'firebase/database';
+import { SkeletonList } from './ui/skeleton';
 
 interface FallEvent {
   id: string;

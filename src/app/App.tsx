@@ -8,7 +8,7 @@ import { auth } from '../lib/firebase';
 import { db, ref, onValue, update } from '../lib/db';
 import { Shield, Clock, LogOut, AlertOctagon } from 'lucide-react';
 import { requestNotificationPermission } from '../lib/messaging';
-import { SkeletonPage } from './components/ui/Skeleton';
+import { SkeletonPage } from './components/ui/skeleton';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
