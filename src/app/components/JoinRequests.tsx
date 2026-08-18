@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Shield, Check, X, Clock } from 'lucide-react';
 import { db, ref, onValue, update } from '../../lib/db';
 import { auth } from '../../lib/firebase';
+import { SkeletonList } from './ui/Skeleton';
 
 interface JoinRequest {
   id: string;
@@ -72,7 +73,15 @@ export function JoinRequests({ familyId }: JoinRequestsProps) {
   };
 
   if (loading && familyId) {
-    return <div className="p-8 text-center text-muted-foreground">Loading requests...</div>;
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-semibold mb-1 text-foreground">Join Requests</h2>
+          <p className="text-sm text-muted-foreground">Manage who has access to this device</p>
+        </div>
+        <SkeletonList items={3} />
+      </div>
+    );
   }
 
   return (

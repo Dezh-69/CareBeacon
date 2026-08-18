@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Battery, Wifi, Radio, Activity, Clock, MapPin, Cpu, Signal, Zap } from 'lucide-react';
 import { db, ref, onValue } from '../../lib/db';
+import { SkeletonCard } from './ui/Skeleton';
 
 interface DeviceStatusProps {
   deviceId: string;
@@ -18,7 +19,20 @@ export function DeviceStatus({ deviceId }: DeviceStatusProps) {
   }, [deviceId]);
 
   if (!deviceData) {
-    return <div className="p-8 text-center text-muted-foreground">Loading device status...</div>;
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-semibold mb-1 text-foreground">System Diagnostics</h2>
+          <p className="text-sm text-muted-foreground">Real-time hardware monitoring</p>
+        </div>
+        <div className="grid md:grid-cols-2 gap-6">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      </div>
+    );
   }
   const getBatteryColor = (level: number) => {
     if (level > 50) return 'emerald';

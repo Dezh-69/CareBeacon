@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { AdminLayout } from "./AdminLayout";
 import { db, ref, onValue } from "../../../lib/db";
+import { SkeletonChart, SkeletonCard } from "../ui/Skeleton";
 import { 
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
@@ -164,7 +165,7 @@ export function AdminAnalytics() {
             <h3 className="text-lg font-medium text-foreground mb-6">Incident Trends (7 Days)</h3>
             <div className="h-72 w-full">
               {loading ? (
-                <div className="size-full flex items-center justify-center text-muted-foreground">Loading chart data...</div>
+                <SkeletonChart />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={incidentData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
@@ -187,7 +188,7 @@ export function AdminAnalytics() {
             <h3 className="text-lg font-medium text-foreground mb-6">Device Fleet Status</h3>
             <div className="h-72 w-full">
               {loading ? (
-                <div className="size-full flex items-center justify-center text-muted-foreground">Loading chart data...</div>
+                <SkeletonChart />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={deviceData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>

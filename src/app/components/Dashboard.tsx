@@ -7,6 +7,7 @@ import { EmergencyContacts } from './EmergencyContacts';
 import { JoinRequests } from './JoinRequests';
 import { CaregiverSchedule } from './CaregiverSchedule';
 import { CaregiverAnalytics } from './CaregiverAnalytics';
+import { SkeletonPage } from './ui/Skeleton';
 import { db, ref, onValue, update, push, set } from '../../lib/db';
 
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -276,7 +277,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
   };
   
   if (loadingContext) {
-    return <div className="size-full flex items-center justify-center bg-background text-foreground">Loading dashboard...</div>;
+    return <SkeletonPage />;
   }
 
   if (!deviceId) {

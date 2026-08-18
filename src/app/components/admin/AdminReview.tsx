@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { AdminLayout } from "./AdminLayout";
 import { db, ref, onValue, update, push, set } from "../../../lib/db";
+import { SkeletonTable } from "../ui/Skeleton";
 import { auth } from "../../../lib/firebase";
 import { CheckCircle, XCircle, Clock } from "lucide-react";
 
@@ -84,9 +85,12 @@ export function AdminReview() {
       <div className="p-8 max-w-5xl mx-auto space-y-6">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Review Queue</h1>
-          <p className="text-sm text-muted-foreground mt-1">Review and approve new family registrations</p>
+          <p className="text-sm text-muted-foreground mt-1">Review and approve new caregiver accounts</p>
         </div>
 
+        {loading ? (
+          <div className="mt-8"><SkeletonTable rows={5} /></div>
+        ) : (
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -101,13 +105,7 @@ export function AdminReview() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
-                      Loading queue...
-                    </td>
-                  </tr>
-                ) : requests.length === 0 ? (
+                {requests.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
                       No registrations in the queue
@@ -162,6 +160,7 @@ export function AdminReview() {
             </table>
           </div>
         </div>
+        )}
       </div>
     </AdminLayout>
   );

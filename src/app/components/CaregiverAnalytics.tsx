@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { db, ref, onValue } from "../../lib/db";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
+import { SkeletonChart } from './ui/Skeleton';
 import { Activity, Battery, AlertTriangle, TrendingDown } from "lucide-react";
 
 interface CaregiverAnalyticsProps {
@@ -26,7 +27,18 @@ export function CaregiverAnalytics({ deviceId }: CaregiverAnalyticsProps) {
     return () => unsub();
   }, [deviceId]);
 
-  if (loading) return <div className="p-8 text-center text-muted-foreground animate-pulse">Loading analytics...</div>;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-semibold mb-1 text-foreground">Analytics Overview</h2>
+          <p className="text-sm text-muted-foreground">Detailed insights and trends</p>
+        </div>
+        <SkeletonChart />
+        <SkeletonChart />
+      </div>
+    );
+  }
 
   // Process data for charts
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

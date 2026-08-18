@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { AdminLayout } from "./AdminLayout";
-import { db, ref, onValue } from "../../../lib/db";
+import { db, ref, onValue, query, orderByChild, update } from "../../../lib/db";
+import { SkeletonTable } from "../ui/Skeleton";
 import { Search, Filter, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 
 interface Incident {
@@ -138,9 +139,11 @@ export function AdminIncidents() {
           </div>
         </div>
 
-        {/* Incidents Table */}
-        <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-          <div className="w-full overflow-x-auto">
+        {loading ? (
+          <SkeletonTable rows={5} />
+        ) : (
+        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="text-muted-foreground bg-muted/30">
                 <tr>
@@ -153,13 +156,7 @@ export function AdminIncidents() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
-                      Loading incidents...
-                    </td>
-                  </tr>
-                ) : filteredIncidents.length === 0 ? (
+                {filteredIncidents.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
                       {search ? "No incidents matched your search" : "No incidents recorded"}
@@ -199,6 +196,7 @@ export function AdminIncidents() {
             </table>
           </div>
         </div>
+        )}
       </div>
     </AdminLayout>
   );

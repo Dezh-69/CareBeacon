@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { AlertTriangle, CheckCircle, Clock, MapPin, Phone, Download } from 'lucide-react';
-import { db, ref, onValue } from '../../lib/db';
+import { Shield, Clock, Search, MapPin, ExternalLink, Filter, Calendar, AlertTriangle, CheckCircle, Phone, Download } from 'lucide-react';
+import { db, ref, onValue, query, orderByChild } from '../../lib/db';
+import { SkeletonList } from './ui/Skeleton';
 
 interface FallEvent {
   id: string;
@@ -42,6 +43,18 @@ export function FallHistory({ deviceId }: FallHistoryProps) {
 
     return () => unsubscribe();
   }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-semibold mb-1 text-foreground">Incident History</h2>
+          <p className="text-sm text-muted-foreground">Historical log of all recorded events</p>
+        </div>
+        <SkeletonList items={5} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

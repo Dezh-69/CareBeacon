@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { AdminLayout } from "./AdminLayout";
 import { StatusBadge } from "./StatusBadge";
+import { SkeletonTable } from "../ui/Skeleton";
 import { db, ref, onValue, push, set, update } from "../../../lib/db";
 import { auth } from "../../../lib/firebase";
 import { Search, Filter, Ban, ShieldCheck, PlusCircle } from "lucide-react";
@@ -202,6 +203,9 @@ export function AdminFamilies() {
         </div>
 
         {/* Families Table */}
+        {loading ? (
+          <SkeletonTable rows={5} />
+        ) : (
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -218,13 +222,7 @@ export function AdminFamilies() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {loading ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
-                      Loading families...
-                    </td>
-                  </tr>
-                ) : filteredFamilies.length === 0 ? (
+                {filteredFamilies.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
                       {search ? "No families matched your search" : "No families registered yet"}
@@ -297,6 +295,7 @@ export function AdminFamilies() {
             </table>
           </div>
         </div>
+        )}
       </div>
     </AdminLayout>
   );

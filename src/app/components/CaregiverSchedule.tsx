@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db, ref, onValue, update } from "../../lib/db";
+import { SkeletonList } from "./ui/Skeleton";
 import { auth } from "../../lib/firebase";
 import { Calendar, Clock, User, ShieldCheck, ToggleRight, ToggleLeft } from "lucide-react";
 
@@ -43,7 +44,17 @@ export function CaregiverSchedule({ familyId }: CaregiverScheduleProps) {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-muted-foreground animate-pulse">Loading schedule...</div>;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-semibold mb-1 text-foreground">Care Schedule</h2>
+          <p className="text-sm text-muted-foreground">Manage caregiver duty status</p>
+        </div>
+        <SkeletonList items={4} />
+      </div>
+    );
+  }
 
   const activeCaregivers = caregivers.filter(c => c.onDuty);
 

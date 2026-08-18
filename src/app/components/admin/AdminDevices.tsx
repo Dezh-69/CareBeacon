@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { AdminLayout } from "./AdminLayout";
 import { StatusBadge } from "./StatusBadge";
 import { db, ref, onValue } from "../../../lib/db";
+import { SkeletonTable } from "../ui/Skeleton";
 import { Search, Filter, Battery, Wifi, WifiOff } from "lucide-react";
 
 interface Device {
@@ -110,6 +111,9 @@ export function AdminDevices() {
         </div>
 
         {/* Devices Table */}
+        {loading ? (
+          <SkeletonTable rows={5} />
+        ) : (
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -124,13 +128,7 @@ export function AdminDevices() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
-                      Loading devices...
-                    </td>
-                  </tr>
-                ) : filteredDevices.length === 0 ? (
+                {filteredDevices.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
                       {search ? "No devices matched your search" : "No devices provisioned"}
@@ -169,6 +167,7 @@ export function AdminDevices() {
             </table>
           </div>
         </div>
+        )}
       </div>
     </AdminLayout>
   );

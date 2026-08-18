@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { AdminLayout } from "./AdminLayout";
 import { db, ref, onValue } from "../../../lib/db";
+import { SkeletonTable } from "../ui/Skeleton";
 import { Search, Filter, ShieldAlert } from "lucide-react";
 
 interface AuditLogEntry {
@@ -69,7 +70,10 @@ export function AdminAuditLog() {
           </div>
         </div>
 
-        {/* Log Table */}
+        {/* Audit Log Table */}
+        {loading ? (
+          <SkeletonTable rows={5} />
+        ) : (
         <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
@@ -83,16 +87,7 @@ export function AdminAuditLog() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {loading ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
-                      <div className="flex flex-col items-center justify-center gap-3">
-                        <div className="size-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-                        <p>Loading audit logs...</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : filteredLogs.length === 0 ? (
+                {filteredLogs.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
                       <div className="flex flex-col items-center justify-center gap-3">
@@ -122,6 +117,7 @@ export function AdminAuditLog() {
             </table>
           </div>
         </div>
+        )}
       </div>
     </AdminLayout>
   );

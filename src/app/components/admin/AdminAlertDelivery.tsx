@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { AdminLayout } from "./AdminLayout";
 import { db, ref, onValue } from "../../../lib/db";
+import { SkeletonTable } from "../ui/Skeleton";
 import { Search, Filter, CheckCircle2, XCircle, Clock } from "lucide-react";
 
 interface AlertDelivery {
@@ -124,6 +125,9 @@ export function AdminAlertDelivery() {
         </div>
 
         {/* Deliveries Table */}
+        {loading ? (
+          <SkeletonTable rows={5} />
+        ) : (
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -137,13 +141,7 @@ export function AdminAlertDelivery() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {loading ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
-                      Loading delivery logs...
-                    </td>
-                  </tr>
-                ) : filteredDeliveries.length === 0 ? (
+                {filteredDeliveries.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
                       {search ? "No logs matched your search" : "No delivery logs recorded"}
@@ -187,6 +185,7 @@ export function AdminAlertDelivery() {
             </table>
           </div>
         </div>
+        )}
       </div>
     </AdminLayout>
   );
