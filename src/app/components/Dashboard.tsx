@@ -7,6 +7,7 @@ import { EmergencyContacts } from './EmergencyContacts';
 import { JoinRequests } from './JoinRequests';
 import { CaregiverSchedule } from './CaregiverSchedule';
 import { CaregiverAnalytics } from './CaregiverAnalytics';
+import { DeviceAudio } from './DeviceAudio';
 import { SkeletonPage } from './ui/skeleton';
 import { db, ref, onValue, update, push, set } from '../../lib/db';
 
@@ -17,7 +18,7 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-type TabType = 'map' | 'history' | 'device' | 'contacts' | 'join_requests' | 'schedule' | 'analytics';
+type TabType = 'map' | 'history' | 'device' | 'audio' | 'contacts' | 'join_requests' | 'schedule' | 'analytics';
 
 const fallbackDeviceData = {
   status: 'offline',
@@ -35,6 +36,16 @@ const fallbackDeviceData = {
 };
 
 export function Dashboard({ user, onLogout }: DashboardProps) {
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  const handleLogoutClick = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+    onLogout();
+  };
   const [activeTab, setActiveTab] = useState<TabType>('map');
   const [deviceData, setDeviceData] = useState<any>(fallbackDeviceData);
   const [hasAlert, setHasAlert] = useState(false);
@@ -285,7 +296,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       <div className="size-full flex flex-col items-center justify-center bg-background text-foreground p-4 text-center">
         <h2 className="text-xl font-bold mb-2">No Device Linked</h2>
         <p className="text-muted-foreground mb-4">Your account is not linked to an active CareBeacon device yet.</p>
-        <button onClick={onLogout} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg">Sign Out</button>
+        <button onClick={handleLogoutClick} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg">Sign Out</button>
       </div>
     );
   }
@@ -330,7 +341,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
             </div>
             
             <button
-              onClick={onLogout}
+              onClick={handleLogoutClick}
               className="p-2.5 hover:bg-muted rounded-xl transition-colors text-muted-foreground hover:text-foreground"
               title="Logout"
             >
@@ -341,68 +352,8 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       </header>
       
       <div className="flex-1 flex overflow-hidden">
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-auto">
-          <div className="p-4 md:p-8">
-            {/* Stats Overview */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-2.5 bg-success/10 rounded-xl">
-                    <Wifi className="size-5 text-success" />
-                  </div>
-                  <TrendingUp className="size-4 text-success" />
-                </div>
-                <p className="text-muted-foreground text-sm mb-1">Connection</p>
-                <p className="text-2xl font-semibold text-foreground">Online</p>
-              </div>
-              
-              <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-2.5 bg-primary/10 rounded-xl">
-                    <Battery className="size-5 text-primary" />
-                  </div>
-                  <span className="text-xs text-muted-foreground">Good</span>
-                </div>
-                <p className="text-muted-foreground text-sm mb-1">Battery</p>
-                <p className="text-2xl font-semibold text-foreground">{Math.round(deviceData.battery)}%</p>
-              </div>
-              
-              <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-2.5 bg-destructive/10 rounded-xl">
-                    <Bell className="size-5 text-destructive" />
-                  </div>
-                  <button 
-                    onClick={() => setShowAdjustModal(true)} 
-                    className="p-1.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
-                    title="Adjust incident count"
-                  >
-                    <Edit2 className="size-4" />
-                  </button>
-                </div>
-                <p className="text-muted-foreground text-sm mb-1">Incidents</p>
-                <p className="text-2xl font-semibold text-foreground">{incidentsCount}</p>
-              </div>
-              
-              <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-2.5 bg-warning/10 rounded-xl">
-                    <Phone className="size-5 text-warning" />
-                  </div>
-                  <span className="text-xs text-muted-foreground">Active</span>
-                </div>
-                <p className="text-muted-foreground text-sm mb-1">Contacts</p>
-                <p className="text-2xl font-semibold text-foreground">3</p>
-              </div>
-            </div>
-            
-            
-          </div>
-        </main>
-
-          {/* Sidebar Navigation */}
-          <nav className="w-56 border-r border-border bg-card px-4 py-6 space-y-6 overflow-y-auto shrink-0 hidden md:block">
+        {/* Sidebar Navigation */}
+        <nav className="w-56 border-r border-border bg-card px-4 py-6 space-y-6 overflow-y-auto shrink-0 hidden md:flex md:flex-col sticky top-0 h-[calc(100vh-73px)]">
             <div>
               <h3 className="px-2 text-xs font-medium text-muted-foreground mb-2">Monitoring</h3>
               <ul className="space-y-1">
@@ -454,6 +405,17 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
                   >
                     <Battery className="size-4" />
                     Device Status
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => setActiveTab('audio')}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      activeTab === 'audio' ? 'bg-secondary text-primary' : 'text-foreground hover:bg-secondary/50 hover:text-primary'
+                    }`}
+                  >
+                    <PhoneCall className="size-4" />
+                    Live Audio
                   </button>
                 </li>
                 <li>
@@ -523,10 +485,64 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto p-4 md:p-8">
+              {/* Stats Overview */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-2.5 bg-success/10 rounded-xl">
+                      <Wifi className="size-5 text-success" />
+                    </div>
+                    <TrendingUp className="size-4 text-success" />
+                  </div>
+                  <p className="text-muted-foreground text-sm mb-1">Connection</p>
+                  <p className="text-2xl font-semibold text-foreground">Online</p>
+                </div>
+                
+                <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-2.5 bg-primary/10 rounded-xl">
+                      <Battery className="size-5 text-primary" />
+                    </div>
+                    <span className="text-xs text-muted-foreground">Good</span>
+                  </div>
+                  <p className="text-muted-foreground text-sm mb-1">Battery</p>
+                  <p className="text-2xl font-semibold text-foreground">{Math.round(deviceData.battery)}%</p>
+                </div>
+                
+                <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-2.5 bg-destructive/10 rounded-xl">
+                      <Bell className="size-5 text-destructive" />
+                    </div>
+                    <button 
+                      onClick={() => setShowAdjustModal(true)} 
+                      className="p-1.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                      title="Adjust incident count"
+                    >
+                      <Edit2 className="size-4" />
+                    </button>
+                  </div>
+                  <p className="text-muted-foreground text-sm mb-1">Incidents</p>
+                  <p className="text-2xl font-semibold text-foreground">{incidentsCount}</p>
+                </div>
+                
+                <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-2.5 bg-warning/10 rounded-xl">
+                      <Phone className="size-5 text-warning" />
+                    </div>
+                    <span className="text-xs text-muted-foreground">Active</span>
+                  </div>
+                  <p className="text-muted-foreground text-sm mb-1">Contacts</p>
+                  <p className="text-2xl font-semibold text-foreground">3</p>
+                </div>
+              </div>
+
               {activeTab === 'map' && <LocationMap deviceId={deviceId!} />}
               {activeTab === 'history' && <FallHistory deviceId={deviceId!} />}
               {activeTab === 'analytics' && <CaregiverAnalytics deviceId={deviceId!} />}
               {activeTab === 'device' && <DeviceStatus deviceId={deviceId!} />}
+              {activeTab === 'audio' && <DeviceAudio deviceId={deviceId!} />}
               {activeTab === 'schedule' && <CaregiverSchedule familyId={familyId!} />}
               {activeTab === 'contacts' && <EmergencyContacts familyId={familyId!} />}
               {activeTab === 'join_requests' && <JoinRequests familyId={familyId!} />}
@@ -700,6 +716,35 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
           50% { transform: scale(1.1); }
         }
       `}</style>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl p-6 shadow-xl max-w-sm w-full mx-4 animate-in zoom-in-95 fade-in duration-200">
+            <div className="flex items-center justify-center size-12 bg-destructive/10 rounded-xl mx-auto mb-4">
+              <LogOut className="size-6 text-destructive" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground text-center mb-2">Sign Out</h3>
+            <p className="text-sm text-muted-foreground text-center mb-6">
+              Are you sure you want to sign out? You will need to log in again to access the dashboard.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-2.5 px-4 bg-muted hover:bg-muted/80 text-foreground rounded-xl text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmLogout}
+                className="flex-1 py-2.5 px-4 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-xl text-sm font-medium transition-colors"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

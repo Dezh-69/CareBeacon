@@ -15,6 +15,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [accessStatus, setAccessStatus] = useState<'active' | 'pending' | 'suspended' | 'loading'>('loading');
   const [userRole, setUserRole] = useState<'caregiver' | 'admin' | null>(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const location = useLocation();
 
@@ -119,7 +120,7 @@ export default function App() {
             This page will update automatically when your request is approved.
           </p>
           <button
-            onClick={() => signOut(auth)}
+            onClick={() => setShowLogoutConfirm(true)}
             className="w-full py-2 flex items-center justify-center gap-2 bg-muted hover:bg-muted/80 text-foreground rounded-xl transition"
           >
             <LogOut className="size-4" />
@@ -127,6 +128,35 @@ export default function App() {
           </button>
         </div>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl p-6 shadow-xl max-w-sm w-full mx-4">
+            <div className="flex items-center justify-center size-12 bg-destructive/10 rounded-xl mx-auto mb-4">
+              <LogOut className="size-6 text-destructive" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground text-center mb-2">Sign Out</h3>
+            <p className="text-sm text-muted-foreground text-center mb-6">
+              Are you sure you want to sign out?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-2.5 px-4 bg-muted hover:bg-muted/80 text-foreground rounded-xl text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowLogoutConfirm(false); signOut(auth); }}
+                className="flex-1 py-2.5 px-4 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-xl text-sm font-medium transition-colors"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -142,7 +172,7 @@ export default function App() {
             Your access to CareBeacon has been suspended by an administrator. Please contact support if you believe this is a mistake.
           </p>
           <button
-            onClick={() => signOut(auth)}
+            onClick={() => setShowLogoutConfirm(true)}
             className="w-full py-2 flex items-center justify-center gap-2 bg-muted hover:bg-muted/80 text-foreground rounded-xl transition"
           >
             <LogOut className="size-4" />

@@ -70,7 +70,7 @@ export function EmergencyContacts({ familyId }: EmergencyContactsProps) {
   };
   
   const handleDeleteContact = async (id: string) => {
-    const contactRef = ref(db, `contacts/${deviceId}/${id}`);
+    const contactRef = ref(db, `families/${familyId}/contacts/${id}`);
     await remove(contactRef);
   };
   

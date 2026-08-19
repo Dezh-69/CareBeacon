@@ -1,21 +1,16 @@
 {
   "rules": {
     "users": {
-      // Users can only read and write their own profile data.
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
         ".write": "auth != null && auth.uid === $uid"
       }
     },
     "families": {
-      // Family data can only be read/written by a user who is assigned to this family ID
-      // and whose accessStatus is 'active' (not pending or denied).
       "$familyId": {
         ".read": "auth != null && root.child('users').child(auth.uid).child('familyId').val() === $familyId && root.child('users').child(auth.uid).child('accessStatus').val() === 'active'",
         ".write": "auth != null && root.child('users').child(auth.uid).child('familyId').val() === $familyId && root.child('users').child(auth.uid).child('accessStatus').val() === 'active'",
         
-        // Anyone authenticated can create a new join request inside a family,
-        // but only active family members can update or delete them.
         "joinRequests": {
           "$requestId": {
             ".write": "auth != null && ( (root.child('users').child(auth.uid).child('familyId').val() === $familyId && root.child('users').child(auth.uid).child('accessStatus').val() === 'active') || !data.exists() )"
@@ -24,22 +19,18 @@
       }
     },
     "devices": {
-      // Devices can only be read by caregivers who have the device linked in their family
       "$deviceId": {
         ".read": "auth != null && root.child('families').child(root.child('users').child(auth.uid).child('familyId').val()).child('deviceId').val() === $deviceId",
-        // The hardware device (authenticated via custom token or service account) writes its own status.
         ".write": "false" 
       }
     },
     "events": {
-      // Events are organized by deviceId, and can only be read by caregivers linked to that device
       "$deviceId": {
         ".read": "auth != null && root.child('families').child(root.child('users').child(auth.uid).child('familyId').val()).child('deviceId').val() === $deviceId",
         ".write": "auth != null && root.child('families').child(root.child('users').child(auth.uid).child('familyId').val()).child('deviceId').val() === $deviceId"
       }
     },
     "admin": {
-      // Admin dashboard data requires admin role
       ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
       ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
     }

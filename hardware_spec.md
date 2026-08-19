@@ -37,7 +37,7 @@ When a fall is detected or the SOS button is pressed, the ESP32 must create a ne
 ```
 
 ## 3. Alert Delivery Receipts
-After the SIM7080G module finishes calling or texting the emergency contacts, it must update the event with the delivery status so the Admin Dashboard can track it.
+After the SIM7670G/SIM7672 module finishes calling or texting the emergency contacts, it must update the event with the delivery status so the Admin Dashboard can track it.
 
 **Path:** `events/{deviceId}/{eventId}/receipts`
 **Method:** `PUT` or Array append
@@ -58,3 +58,28 @@ After the SIM7080G module finishes calling or texting the emergency contacts, it
   }
 ]
 ```
+
+## 4. GSM Voice Call Signaling (Live Audio)
+To support live audio between the caregiver and the patient using the SIM800L module, the dashboard acts as a remote control.
+
+**Path:** `devices/{deviceId}/callRequest`
+
+### When the dashboard initiates a call:
+The dashboard will write the caregiver's target phone number and a timestamp to the database.
+
+```json
+{
+  "targetNumber": "+639123456789",
+  "timestamp": 1710940000000,
+  "status": "requested" // Can be 'requested', 'dialing', 'in-call', 'ended', 'failed'
+}
+```
+
+### ESP32 Response (Executing the call):
+The ESP32 must listen to this node. When a new `callRequest` appears:
+1. Execute the AT command to dial the number: `ATD+639123456789;`
+2. Update the `status` field in Firebase to `"dialing"`.
+3. Monitor the call status via AT commands and update the Firebase status to `"in-call"` when connected.
+4. When the call is terminated (either by the caregiver hanging up or the device hanging up via `ATH`), update the status to `"ended"`.
+
+**Note:** The dashboard will listen to the `status` field to show real-time call progress to the caregiver.

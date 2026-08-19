@@ -175,54 +175,54 @@ export function AdminDashboard() {
 
   return (
     <AdminLayout>
-      <div className="p-8 max-w-6xl mx-auto space-y-6">
+      <div className="p-4 sm:p-6 md:p-8 max-w-6xl mx-auto space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-4 sm:mb-8">
           <div>
-            <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-1">System overview</p>
+            <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Dashboard</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">System overview</p>
           </div>
-          <div className="flex items-center justify-center size-10 rounded-full bg-secondary text-primary font-medium cursor-pointer hover:bg-secondary/80">
+          <div className="hidden sm:flex items-center justify-center size-10 rounded-full bg-secondary text-primary font-medium cursor-pointer hover:bg-secondary/80">
             A
           </div>
         </div>
 
         {/* Stat Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-card p-6 rounded-xl border border-border flex flex-col gap-2 shadow-sm">
-            <span className="text-sm text-muted-foreground">Families</span>
-            <span className="text-2xl font-semibold">{stats.totalFamilies}</span>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-card p-4 sm:p-6 rounded-xl border border-border flex flex-col gap-1 sm:gap-2 shadow-sm">
+            <span className="text-xs sm:text-sm text-muted-foreground">Families</span>
+            <span className="text-xl sm:text-2xl font-semibold">{stats.totalFamilies}</span>
           </div>
-          <div className="bg-card p-6 rounded-xl border border-border flex flex-col gap-2 shadow-sm">
-            <span className="text-sm text-muted-foreground">Devices online</span>
-            <span className="text-2xl font-semibold">{stats.devicesOnline}/{stats.totalDevices}</span>
+          <div className="bg-card p-4 sm:p-6 rounded-xl border border-border flex flex-col gap-1 sm:gap-2 shadow-sm">
+            <span className="text-xs sm:text-sm text-muted-foreground">Devices online</span>
+            <span className="text-xl sm:text-2xl font-semibold">{stats.devicesOnline}/{stats.totalDevices}</span>
           </div>
-          <div className="bg-card p-6 rounded-xl border border-border flex flex-col gap-2 shadow-sm">
-            <span className="text-sm text-muted-foreground">Open incidents</span>
-            <span className="text-2xl font-semibold">{stats.openIncidents}</span>
+          <div className="bg-card p-4 sm:p-6 rounded-xl border border-border flex flex-col gap-1 sm:gap-2 shadow-sm">
+            <span className="text-xs sm:text-sm text-muted-foreground">Open incidents</span>
+            <span className="text-xl sm:text-2xl font-semibold">{stats.openIncidents}</span>
           </div>
-          <div className="bg-card p-6 rounded-xl border border-border flex flex-col gap-2 shadow-sm">
-            <span className="text-sm text-muted-foreground">Alerts delivered</span>
-            <span className="text-2xl font-semibold">100%</span>
+          <div className="bg-card p-4 sm:p-6 rounded-xl border border-border flex flex-col gap-1 sm:gap-2 shadow-sm">
+            <span className="text-xs sm:text-sm text-muted-foreground">Alerts delivered</span>
+            <span className="text-xl sm:text-2xl font-semibold">100%</span>
           </div>
         </div>
 
         {/* Registered Families Panel */}
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-          <div className="p-6 flex items-center justify-between border-b border-border">
-            <h2 className="text-lg font-medium text-foreground">Registered families</h2>
-            <Link to="/admin/families" className="text-sm font-medium text-primary hover:text-primary/80 transition-colors">
+          <div className="p-4 sm:p-6 flex items-center justify-between border-b border-border">
+            <h2 className="text-base sm:text-lg font-medium text-foreground">Registered families</h2>
+            <Link to="/admin/families" className="text-xs sm:text-sm font-medium text-primary hover:text-primary/80 transition-colors">
               View all
             </Link>
           </div>
           <div className="w-full overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left text-xs sm:text-sm min-w-[480px]">
               <thead className="text-muted-foreground bg-muted/30">
                 <tr>
-                  <th className="font-medium px-6 py-4">Person monitored</th>
-                  <th className="font-medium px-6 py-4">Device Serial</th>
-                  <th className="font-medium px-6 py-4">Battery</th>
-                  <th className="font-medium px-6 py-4">Status</th>
+                  <th className="font-medium px-3 sm:px-6 py-3 sm:py-4">Person monitored</th>
+                  <th className="font-medium px-3 sm:px-6 py-3 sm:py-4">Device Serial</th>
+                  <th className="font-medium px-3 sm:px-6 py-3 sm:py-4">Battery</th>
+                  <th className="font-medium px-3 sm:px-6 py-3 sm:py-4">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -235,10 +235,10 @@ export function AdminDashboard() {
                 ) : (
                   families.slice(0, 5).map((family) => (
                     <tr key={family.id} className="hover:bg-muted/50 transition-colors">
-                      <td className="px-6 py-4 text-foreground font-medium">{family.name}</td>
-                      <td className="px-6 py-4 text-muted-foreground font-mono text-xs">{family.deviceId}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{family.battery}</td>
-                      <td className="px-6 py-4">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-foreground font-medium">{family.name}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-muted-foreground font-mono text-xs">{family.deviceId}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-muted-foreground">{family.battery}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4">
                         <StatusBadge status={family.status} />
                       </td>
                     </tr>
@@ -251,8 +251,8 @@ export function AdminDashboard() {
 
         {/* Recent Incidents Panel */}
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-border">
-            <h2 className="text-lg font-medium text-foreground">Recent incidents</h2>
+          <div className="p-4 sm:p-6 border-b border-border">
+            <h2 className="text-base sm:text-lg font-medium text-foreground">Recent incidents</h2>
           </div>
           <div className="flex flex-col">
             {incidents.length === 0 ? (
@@ -261,7 +261,7 @@ export function AdminDashboard() {
               </div>
             ) : (
               incidents.map((incident) => (
-                <div key={incident.id} className="flex items-start gap-4 p-6 hover:bg-muted/50 transition-colors border-b border-border last:border-0">
+                <div key={incident.id} className="flex items-start gap-3 sm:gap-4 p-4 sm:p-6 hover:bg-muted/50 transition-colors border-b border-border last:border-0">
                   <div className={`mt-1 size-3 rounded ${incident.typeColor} flex-shrink-0`} />
                   <div className="flex flex-col">
                     <div className="text-sm font-medium text-foreground">

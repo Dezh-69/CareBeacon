@@ -1,6 +1,7 @@
 import { 
   ref as fbRef, 
   onValue as fbOnValue, 
+  onChildAdded as fbOnChildAdded,
   push as fbPush, 
   set as fbSet, 
   update as fbUpdate, 
@@ -19,8 +20,12 @@ export const onValue = (reference: any, callback: (snapshot: any) => void) => {
   return fbOnValue(reference, callback);
 };
 
-export const push = (reference: any) => {
-  return fbPush(reference);
+export const onChildAdded = (reference: any, callback: (snapshot: any) => void) => {
+  return fbOnChildAdded(reference, callback);
+};
+
+export const push = (reference: any, value?: any) => {
+  return value !== undefined ? fbPush(reference, value) : fbPush(reference);
 };
 
 export const set = (reference: any, value: any) => {
