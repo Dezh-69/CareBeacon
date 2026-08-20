@@ -10,6 +10,7 @@ import { CaregiverAnalytics } from './CaregiverAnalytics';
 import { DeviceAudio } from './DeviceAudio';
 import { SkeletonPage } from './ui/skeleton';
 import { db, ref, onValue, update, push, set } from '../../lib/db';
+import { get } from 'firebase/database';
 
 import type { User as FirebaseUser } from 'firebase/auth';
 
@@ -57,6 +58,13 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
   
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [adjustAmount, setAdjustAmount] = useState(0);
+
+  // Link Device Form State
+  const [linkSerial, setLinkSerial] = useState('');
+  const [linkPatient, setLinkPatient] = useState('');
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [linkError, setLinkError] = useState('');
+  const [linkSuccess, setLinkSuccess] = useState('');
 
   // Emergency alert state
   const [alertTimestamp, setAlertTimestamp] = useState<Date | null>(null);
@@ -307,12 +315,185 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
     return <SkeletonPage />;
   }
 
+  const handleLinkDevice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLinkError('');
+    setLinkSuccess('');
+    if (!linkSerial.trim()) return setLinkError('Device Serial is required');
+    if (!linkPatient.trim()) return setLinkError('Patient Name is required');
+    
+    setLinkLoading(true);
+    try {
+      const trimmedSerial = linkSerial.trim().toUpperCase();
+      
+      // 1. Check if device exists (already linked to a family)
+      const deviceRef = ref(db, `devices/${trimmedSerial}`);
+      const deviceSnap = await get(deviceRef);
+      
+      if (deviceSnap.exists() && deviceSnap.val().familyId) {
+        // Device is already linked to a family, request to join
+        const familyId = deviceSnap.val().familyId;
+        
+        // Add to joinRequests
+        const requestRef = push(ref(db, `families/${familyId}/joinRequests`));
+        await set(requestRef, {
+          uid: user.uid,
+          name: user.displayName || user.email?.split('@')[0] || 'Unknown',
+          email: user.email,
+          status: 'pending',
+          timestamp: new Date().toISOString()
+        });
+        
+        setLinkSuccess('A request to join this family has been sent to the existing caregivers.');
+        await set(ref(db, `users/${user.uid}/accessStatus`), 'pending');
+        return;
+      }
+      
+      // 2. Check admin inventory for a new provisioned device
+      const invRef = ref(db, `admin/inventory/${trimmedSerial}`);
+      const invSnap = await get(invRef);
+      
+      if (!invSnap.exists()) {
+        throw new Error('Invalid Device Serial Number or device not provisioned.');
+      }
+      
+      // 3. Create new family for this provisioned device
+      const familiesRef = ref(db, 'families');
+      const newFamilyRef = push(familiesRef);
+      const newFamilyId = newFamilyRef.key;
+      const now = new Date().toISOString();
+      
+      await set(newFamilyRef, {
+        monitoredPerson: { name: linkPatient.trim() },
+        deviceSerialNumber: trimmedSerial,
+        caregivers: {
+          [user.uid]: {
+            name: user.displayName || user.email?.split('@')[0] || 'Unknown',
+            email: user.email,
+            role: 'primary',
+            joinedAt: now
+          }
+        },
+        createdAt: now,
+        status: 'active'
+      });
+      
+      await set(ref(db, `devices/${trimmedSerial}/familyId`), newFamilyId);
+      await set(ref(db, `users/${user.uid}/familyId`), newFamilyId);
+      await set(ref(db, `users/${user.uid}/accessStatus`), 'active');
+      
+      // The dashboard will automatically reload and fetch the new deviceId
+    } catch (err: any) {
+      setLinkError(err.message || 'Failed to link device');
+    } finally {
+      setLinkLoading(false);
+    }
+  };
+
   if (!deviceId) {
     return (
-      <div className="size-full flex flex-col items-center justify-center bg-background text-foreground p-4 text-center">
-        <h2 className="text-xl font-bold mb-2">No Device Linked</h2>
-        <p className="text-muted-foreground mb-4">Your account is not linked to an active CareBeacon device yet.</p>
-        <button onClick={handleLogoutClick} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg">Sign Out</button>
+      <div className="size-full min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4">
+        <div className="w-full max-w-md bg-card border border-border rounded-2xl p-8 shadow-sm">
+          <div className="flex justify-center mb-6">
+            <div className="inline-flex items-center justify-center size-16 bg-primary/10 rounded-xl text-primary">
+              <Plus className="size-8" strokeWidth={1.5} />
+            </div>
+          </div>
+          
+          <h2 className="text-2xl font-bold text-center mb-2">Link a Device</h2>
+          <p className="text-muted-foreground text-center mb-8">
+            Your account is not linked to an active CareBeacon device yet. Enter your device details below.
+          </p>
+
+          {linkError && (
+            <div className="mb-6 p-4 bg-destructive/10 text-destructive text-sm rounded-xl border border-destructive/20 flex items-start gap-3">
+              <AlertOctagon className="size-5 shrink-0" />
+              <p>{linkError}</p>
+            </div>
+          )}
+
+          {linkSuccess && (
+            <div className="mb-6 p-4 bg-success/10 text-success text-sm rounded-xl border border-success/20 flex items-start gap-3">
+              <CheckCircle className="size-5 shrink-0" />
+              <p>{linkSuccess}</p>
+            </div>
+          )}
+
+          {!linkSuccess && (
+            <form onSubmit={handleLinkDevice} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Device Serial Number</label>
+                <input 
+                  type="text" 
+                  value={linkSerial}
+                  onChange={(e) => setLinkSerial(e.target.value)}
+                  placeholder="e.g. CB-2026-0001" 
+                  className="w-full px-4 py-2.5 bg-background border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Patient / Monitored Person Name</label>
+                <input 
+                  type="text" 
+                  value={linkPatient}
+                  onChange={(e) => setLinkPatient(e.target.value)}
+                  placeholder="e.g. John Doe" 
+                  className="w-full px-4 py-2.5 bg-background border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  required
+                />
+              </div>
+              
+              <button 
+                type="submit" 
+                disabled={linkLoading}
+                className="w-full py-3 bg-primary text-primary-foreground font-medium rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-70 mt-4"
+              >
+                {linkLoading ? 'Linking...' : 'Link Device'}
+              </button>
+            </form>
+          )}
+
+          <div className="mt-8 pt-6 border-t border-border flex flex-col items-center gap-4">
+            <p className="text-sm text-muted-foreground">Or sign out to switch accounts</p>
+            <button 
+              onClick={handleLogoutClick} 
+              className="flex items-center gap-2 text-sm text-destructive hover:text-destructive/80 transition-colors font-medium"
+            >
+              <LogOut className="size-4" />
+              Sign Out
+            </button>
+          </div>
+        </div>
+        
+        {/* Logout Confirmation Modal */}
+        {showLogoutConfirm && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-xl max-w-sm w-full mx-4">
+              <div className="flex items-center justify-center size-12 bg-destructive/10 rounded-xl mx-auto mb-4">
+                <LogOut className="size-6 text-destructive" />
+              </div>
+              <h3 className="text-lg font-semibold text-foreground text-center mb-2">Sign Out</h3>
+              <p className="text-sm text-muted-foreground text-center mb-6">
+                Are you sure you want to sign out?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="flex-1 py-2.5 px-4 bg-muted hover:bg-muted/80 text-foreground rounded-xl text-sm font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmLogout}
+                  className="flex-1 py-2.5 px-4 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-xl text-sm font-medium transition-colors"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

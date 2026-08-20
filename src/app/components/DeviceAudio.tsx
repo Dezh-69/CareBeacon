@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Phone, PhoneOff, AlertCircle } from 'lucide-react';
+import { formatPhoneNumber } from '../../lib/formatPhone';
 import { db, ref, set, onValue } from '../../lib/db';
 
 interface DeviceAudioProps {
@@ -84,9 +85,9 @@ export function DeviceAudio({ deviceId }: DeviceAudioProps) {
           <label className="block text-sm font-medium text-muted-foreground mb-1">Your Phone Number</label>
           <input 
             type="tel"
-            placeholder="+639123456789"
-            value={targetNumber}
-            onChange={(e) => setTargetNumber(e.target.value)}
+            placeholder="+63 917 123 4567"
+            value={targetNumber || '+63'}
+            onChange={(e) => setTargetNumber(formatPhoneNumber(e.target.value))}
             disabled={callStatus !== 'idle' && callStatus !== 'ended' && callStatus !== 'failed'}
             className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
           />

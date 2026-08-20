@@ -1,9 +1,17 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { cn } from "../ui/utils";
-import { Menu, X, LogOut } from "lucide-react";
+import { Menu, X, LogOut, ArrowLeft, Settings } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "../../../lib/firebase";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 const navigation = [
   { name: "Dashboard", href: "/admin", section: "Overview" },
@@ -15,13 +23,16 @@ const navigation = [
   { name: "Alert delivery", href: "/admin/alert-delivery", section: "Monitoring" },
   { name: "Tickets", href: "/admin/tickets", section: "Support", count: 14 },
   { name: "Audit log", href: "/admin/audit-log", section: "Support" },
-  { name: "Settings", href: "/admin/settings", section: "System" },
 ];
+
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  const isRootAdmin = location.pathname === "/admin";
 
   const handleLogoutClick = () => {
     setShowLogoutConfirm(true);
@@ -100,45 +111,61 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
       </div>
-
-      {/* Footer profile & sign out */}
-      <div className="p-4 border-t border-border mt-auto space-y-3">
-        <div className="flex items-center gap-3 px-2 py-2">
-          <div className="flex items-center justify-center size-8 rounded-full bg-secondary text-primary font-medium">
-            A
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-medium text-foreground">Admin</span>
-            <span className="text-xs text-muted-foreground">Superadmin</span>
-          </div>
-        </div>
-        <button
-          onClick={handleLogoutClick}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-        >
-          <LogOut className="size-4" />
-          Sign Out
-        </button>
-      </div>
     </>
   );
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
+    <div className="flex h-screen overflow-hidden w-full bg-background">
       {/* Mobile top bar */}
-      <div className="fixed top-0 left-0 right-0 z-40 md:hidden flex items-center h-14 px-4 bg-card border-b border-border">
-        <button
-          className="p-2 rounded-lg hover:bg-muted text-foreground"
-          onClick={() => setSidebarOpen(true)}
-        >
-          <Menu className="size-5" />
-        </button>
-        <div className="flex items-center gap-2 ml-3">
-          <div className="flex items-center justify-center size-7 rounded bg-primary text-primary-foreground font-semibold text-xs">
-            G
+      <div className="fixed top-0 left-0 right-0 z-40 md:hidden flex items-center justify-between h-14 px-4 bg-card border-b border-border">
+        <div className="flex items-center">
+          <button
+            className="p-2 rounded-lg hover:bg-muted text-foreground"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <Menu className="size-5" />
+          </button>
+          {!isRootAdmin && (
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2 rounded-lg hover:bg-muted text-muted-foreground ml-1"
+            >
+              <ArrowLeft className="size-5" />
+            </button>
+          )}
+          <div className="flex items-center gap-2 ml-3">
+            <div className="flex items-center justify-center size-7 rounded bg-primary text-primary-foreground font-semibold text-xs">
+              G
+            </div>
+            <span className="font-semibold text-foreground text-sm">Guardian admin</span>
           </div>
-          <span className="font-semibold text-foreground text-sm">Guardian admin</span>
         </div>
+        {/* Mobile avatar dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <div className="flex items-center justify-center size-9 rounded-full bg-secondary text-primary font-medium cursor-pointer hover:bg-secondary/80 transition-colors text-sm">
+              A
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link to="/admin/settings" className="cursor-pointer flex w-full items-center">
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Settings</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={handleLogoutClick}
+              className="text-destructive focus:text-destructive cursor-pointer"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Sign Out</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Mobile sidebar overlay */}
@@ -152,7 +179,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       {/* Sidebar - desktop: always visible, mobile: slide-in drawer */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 border-r border-border bg-card flex flex-col justify-between transition-transform duration-300 md:static md:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 w-64 border-r border-border bg-card flex flex-col justify-between overflow-y-auto transition-transform duration-300 md:static md:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -161,6 +188,46 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto pt-14 md:pt-0">
+        {/* Desktop top bar with back button + avatar */}
+        <div className="hidden md:flex items-center justify-between px-8 pt-6">
+          <div>
+            {!isRootAdmin && (
+              <button
+                onClick={() => navigate(-1)}
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group"
+              >
+                <ArrowLeft className="size-4 group-hover:-translate-x-0.5 transition-transform" />
+                Back
+              </button>
+            )}
+          </div>
+          {/* Desktop avatar dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className="flex items-center justify-center size-10 rounded-full bg-secondary text-primary font-medium cursor-pointer hover:bg-secondary/80 transition-colors">
+                A
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/admin/settings" className="cursor-pointer flex w-full items-center">
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Settings</span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={handleLogoutClick}
+                className="text-destructive focus:text-destructive cursor-pointer"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Sign Out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         {children}
       </main>
 

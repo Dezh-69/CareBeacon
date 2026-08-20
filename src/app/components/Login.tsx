@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FirebaseError } from 'firebase/app';
 import { sendJoinRequestEmail } from '../../lib/email';
 import { Shield, Cpu, UserCheck, Phone, Eye, EyeOff } from 'lucide-react';
+import { formatPhoneNumber } from '../../lib/formatPhone';
 
 interface LoginProps {
   onSignUpComplete?: (status: 'active' | 'pending') => void;
@@ -345,8 +346,8 @@ export function Login({ onSignUpComplete }: LoginProps) {
                     </label>
                     <input
                       type="tel"
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      value={phoneNumber || '+63'}
+                      onChange={(e) => setPhoneNumber(formatPhoneNumber(e.target.value))}
                       className="w-full px-4 py-2.5 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm"
                       placeholder="+63 917 123 4567"
                       required={isSignUp}

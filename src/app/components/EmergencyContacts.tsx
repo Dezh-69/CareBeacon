@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Phone, Mail, Plus, Edit2, Trash2, Star, Shield, AlertCircle } from 'lucide-react';
+import { Plus, User, Phone, Mail, Clock, AlertCircle, Edit2, Trash2, Star, Shield } from 'lucide-react';
+import { formatPhoneNumber } from '../../lib/formatPhone';
 import { db, ref, onValue, push, set, remove } from '../../lib/db';
 
 interface Contact {
@@ -112,9 +113,9 @@ export function EmergencyContacts({ familyId }: EmergencyContactsProps) {
             />
             <input
               type="tel"
-              placeholder="Phone Number"
-              value={newPhone}
-              onChange={(e) => setNewPhone(e.target.value)}
+              placeholder="+63 917 123 4567"
+              value={newPhone || '+63'}
+              onChange={(e) => setNewPhone(formatPhoneNumber(e.target.value))}
               className="px-4 py-3 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition"
             />
             <input

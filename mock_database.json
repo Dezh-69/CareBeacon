@@ -1,0 +1,130 @@
+{
+  "admin": {
+    "inventory": {
+      "CB-MOCK-0001": {
+        "label": "Test Unit Alpha",
+        "notes": "Jane Doe's Device",
+        "provisionedAt": "2026-08-18T10:00:00.000Z",
+        "provisionedBy": "admin@carebeacon.local"
+      },
+      "CB-MOCK-0002": {
+        "label": "Test Unit Beta",
+        "notes": "Robert Smith's Device",
+        "provisionedAt": "2026-08-19T14:30:00.000Z",
+        "provisionedBy": "admin@carebeacon.local"
+      },
+      "CB-MOCK-0003": {
+        "label": "Test Unit Gamma",
+        "notes": "Offline test device",
+        "provisionedAt": "2026-08-20T09:15:00.000Z",
+        "provisionedBy": "admin@carebeacon.local"
+      }
+    }
+  },
+  "users": {
+    "8GFpKWxaNcVQ0Otcv8efCYioMKR2": {
+      "role": "caregiver",
+      "accessStatus": "active",
+      "email": "caregiver@carebeacon.com",
+      "familyId": "mock-family-1"
+    },
+    "9YbxNpNZOPbFU6raEqqmuNSZyjV2": {
+      "role": "admin",
+      "accessStatus": "active",
+      "email": "admin@carebeacon.com"
+    }
+  },
+  "devices": {
+    "CB-MOCK-0001": {
+      "battery": 82,
+      "lastUpdate": "2026-08-20T22:30:00.000Z",
+      "location": {
+        "lat": 34.0522,
+        "lng": -118.2437
+      },
+      "status": "online"
+    },
+    "CB-MOCK-0002": {
+      "battery": 12,
+      "lastUpdate": "2026-08-20T22:25:00.000Z",
+      "location": {
+        "lat": 40.7128,
+        "lng": -74.0060
+      },
+      "status": "online"
+    },
+    "CB-MOCK-0003": {
+      "battery": 0,
+      "lastUpdate": "2026-08-10T10:00:00.000Z",
+      "location": {
+        "lat": 51.5074,
+        "lng": -0.1278
+      },
+      "status": "offline"
+    }
+  },
+  "families": {
+    "mock-family-1": {
+      "createdAt": "2026-08-18T10:05:00.000Z",
+      "deviceId": "CB-MOCK-0001",
+      "patientName": "Jane Doe",
+      "status": "active",
+      "caregivers": {
+        "mock-user-1": true,
+        "8GFpKWxaNcVQ0Otcv8efCYioMKR2": {
+          "name": "Caregiver",
+          "email": "caregiver@carebeacon.com",
+          "role": "primary",
+          "joinedAt": "2026-08-20T10:00:00.000Z"
+        }
+      }
+    },
+    "mock-family-2": {
+      "createdAt": "2026-08-19T14:35:00.000Z",
+      "deviceId": "CB-MOCK-0002",
+      "patientName": "Robert Smith",
+      "status": "active",
+      "caregivers": {
+        "mock-user-2": true
+      }
+    },
+    "mock-family-3": {
+      "createdAt": "2026-08-20T09:20:00.000Z",
+      "deviceId": "CB-MOCK-0003",
+      "patientName": "Sarah Williams",
+      "status": "suspended",
+      "caregivers": {
+        "mock-user-3": true
+      }
+    }
+  },
+  "events": {
+    "CB-MOCK-0001": {
+      "mock-event-1": {
+        "contactNotified": "John Doe",
+        "status": "resolved",
+        "timestamp": "2026-08-19T08:00:00.000Z",
+        "type": "fall"
+      },
+      "mock-event-2": {
+        "status": "unconfirmed",
+        "timestamp": "2026-08-20T22:00:00.000Z",
+        "type": "fall"
+      }
+    },
+    "CB-MOCK-0002": {
+      "mock-event-3": {
+        "status": "emergency",
+        "timestamp": "2026-08-20T22:15:00.000Z",
+        "type": "sos"
+      }
+    },
+    "CB-MOCK-0003": {
+      "mock-event-4": {
+        "status": "cancelled",
+        "timestamp": "2026-08-15T11:00:00.000Z",
+        "type": "fall"
+      }
+    }
+  }
+}

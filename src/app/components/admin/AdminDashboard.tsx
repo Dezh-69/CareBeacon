@@ -177,14 +177,9 @@ export function AdminDashboard() {
     <AdminLayout>
       <div className="p-4 sm:p-6 md:p-8 max-w-6xl mx-auto space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4 sm:mb-8">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Dashboard</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-1">System overview</p>
-          </div>
-          <div className="hidden sm:flex items-center justify-center size-10 rounded-full bg-secondary text-primary font-medium cursor-pointer hover:bg-secondary/80">
-            A
-          </div>
+        <div className="mb-4 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Dashboard</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">System overview</p>
         </div>
 
         {/* Stat Cards */}
