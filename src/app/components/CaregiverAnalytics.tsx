@@ -109,7 +109,7 @@ export function CaregiverAnalytics({ deviceId }: CaregiverAnalyticsProps) {
           <div className="h-[60px] mt-2">
              <ResponsiveContainer width="100%" height="100%">
                <LineChart data={weeklyData}>
-                 <Line type="monotone" dataKey="falls" stroke="hsl(var(--primary))" strokeWidth={3} dot={false} />
+               <Line type="monotone" dataKey="falls" stroke="var(--primary)" strokeWidth={3} dot={false} />
                </LineChart>
              </ResponsiveContainer>
           </div>
@@ -123,14 +123,16 @@ export function CaregiverAnalytics({ deviceId }: CaregiverAnalyticsProps) {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weeklyData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--muted-foreground)" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip 
-                  cursor={{ fill: 'hsl(var(--muted))' }}
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                  cursor={{ fill: 'var(--muted)' }}
+                  contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: '12px', color: 'var(--foreground)' }}
+                  labelStyle={{ color: 'var(--foreground)', fontWeight: 600 }}
+                  itemStyle={{ color: 'var(--muted-foreground)' }}
                 />
-                <Bar dataKey="falls" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="falls" fill="var(--primary)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -142,13 +144,15 @@ export function CaregiverAnalytics({ deviceId }: CaregiverAnalyticsProps) {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={hourlyData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val, i) => i % 4 === 0 ? val : ''} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="time" stroke="var(--muted-foreground)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val, i) => i % 4 === 0 ? val : ''} />
+                <YAxis stroke="var(--muted-foreground)" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                  contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: '12px', color: 'var(--foreground)' }}
+                  labelStyle={{ color: 'var(--foreground)', fontWeight: 600 }}
+                  itemStyle={{ color: 'var(--muted-foreground)' }}
                 />
-                <Line type="monotone" dataKey="falls" stroke="hsl(var(--destructive))" strokeWidth={3} dot={{ fill: 'hsl(var(--destructive))', strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="falls" stroke="var(--destructive)" strokeWidth={3} dot={{ fill: 'var(--destructive)', strokeWidth: 2 }} activeDot={{ r: 6 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>

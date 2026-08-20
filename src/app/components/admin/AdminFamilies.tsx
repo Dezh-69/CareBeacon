@@ -22,6 +22,7 @@ export function AdminFamilies() {
   const [families, setFamilies] = useState<Family[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
 
   useEffect(() => {
     const familiesRef = ref(db, 'families');
@@ -102,10 +103,12 @@ export function AdminFamilies() {
     };
   }, []);
 
-  const filteredFamilies = families.filter(f => 
-    f.name.toLowerCase().includes(search.toLowerCase()) || 
-    f.deviceId.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredFamilies = families.filter(f => {
+    const matchesSearch = f.name.toLowerCase().includes(search.toLowerCase()) || 
+                          f.deviceId.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = filterStatus === "all" || f.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
 
   const handleToggleSuspend = async (family: Family) => {
     const newStatus = family.accountStatus === 'active' ? 'suspended' : 'active';
@@ -188,10 +191,19 @@ export function AdminFamilies() {
                 className="pl-9 pr-4 py-2 bg-card border border-border rounded-xl text-sm focus:outline-none focus:border-primary w-full md:w-64"
               />
             </div>
-            <button className="flex items-center gap-2 px-4 py-2 bg-card border border-border hover:bg-muted text-foreground rounded-xl text-sm font-medium transition-colors">
-              <Filter className="size-4" />
-              Filter
-            </button>
+            <div className="relative">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="pl-9 pr-8 py-2 bg-card border border-border rounded-xl text-sm focus:outline-none focus:border-primary appearance-none cursor-pointer text-foreground h-[38px]"
+              >
+                <option value="all">All Statuses</option>
+                <option value="online">Online</option>
+                <option value="offline">Offline</option>
+                <option value="low_battery">Low Battery</option>
+              </select>
+            </div>
             <button 
               onClick={handleProvisionDevice}
               className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-medium transition-colors"

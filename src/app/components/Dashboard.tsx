@@ -134,6 +134,22 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
     };
   }, [deviceId]);
 
+  // Request FCM permissions and save token to the device node
+  // This allows the ESP32 to simply read devices/{deviceId}/fcmTokens to get all targets
+  useEffect(() => {
+    if (deviceId && user) {
+      import('../../lib/messaging').then(({ requestNotificationPermission }) => {
+        requestNotificationPermission().then(token => {
+          if (token) {
+            update(ref(db, `devices/${deviceId}/fcmTokens`), {
+              [user.uid]: token
+            }).catch(err => console.error("Error saving FCM token:", err));
+          }
+        });
+      });
+    }
+  }, [deviceId, user]);
+
   // --- Alarm audio via Web Audio API ---
   const startAlarm = useCallback(() => {
     if (audioContextRef.current) return;

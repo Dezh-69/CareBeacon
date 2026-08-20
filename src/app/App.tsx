@@ -82,16 +82,8 @@ export default function App() {
     setUserRole('caregiver');
   };
 
-  // Request FCM permissions once user is active
-  useEffect(() => {
-    if (user && accessStatus === 'active') {
-      requestNotificationPermission().then(token => {
-        if (token) {
-          update(ref(db, `users/${user.uid}`), { fcmToken: token }).catch(err => console.error(err));
-        }
-      });
-    }
-  }, [user, accessStatus]);
+  // FCM Token registration has been moved to Dashboard.tsx
+  // so we can save tokens directly to devices/{deviceId}/fcmTokens
 
   if (loading) {
     return <SkeletonPage />;

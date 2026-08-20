@@ -18,6 +18,7 @@ export function AdminAlertDelivery() {
   const [deliveries, setDeliveries] = useState<AlertDelivery[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
 
   useEffect(() => {
     // In a real implementation with Twilio/FCM, we would pull delivery receipts.
@@ -91,10 +92,12 @@ export function AdminAlertDelivery() {
     };
   }, []);
 
-  const filteredDeliveries = deliveries.filter(d => 
-    d.patientName.toLowerCase().includes(search.toLowerCase()) || 
-    d.contactName.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredDeliveries = deliveries.filter(d => {
+    const matchesSearch = d.patientName.toLowerCase().includes(search.toLowerCase()) || 
+                          d.contactName.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = filterStatus === "all" || d.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <AdminLayout>
@@ -117,10 +120,19 @@ export function AdminAlertDelivery() {
                 className="pl-9 pr-4 py-2 bg-card border border-border rounded-xl text-sm focus:outline-none focus:border-primary w-full md:w-64"
               />
             </div>
-            <button className="flex items-center gap-2 px-4 py-2 bg-card border border-border hover:bg-muted text-foreground rounded-xl text-sm font-medium transition-colors">
-              <Filter className="size-4" />
-              Filter
-            </button>
+            <div className="relative">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="pl-9 pr-8 py-2 bg-card border border-border rounded-xl text-sm focus:outline-none focus:border-primary appearance-none cursor-pointer text-foreground h-[38px]"
+              >
+                <option value="all">All Statuses</option>
+                <option value="Delivered">Delivered</option>
+                <option value="Pending">Pending</option>
+                <option value="Failed">Failed</option>
+              </select>
+            </div>
           </div>
         </div>
 

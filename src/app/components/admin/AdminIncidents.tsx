@@ -3,7 +3,7 @@ import { AdminLayout } from "./AdminLayout";
 import { db, ref, onValue, update } from "../../../lib/db";
 import { query, orderByChild } from "firebase/database";
 import { SkeletonTable } from "../ui/skeleton";
-import { Search, Filter, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import { Search, Filter, AlertTriangle, CheckCircle, Clock, X, MapPin } from "lucide-react";
 
 interface Incident {
   id: string;
@@ -23,6 +23,8 @@ export function AdminIncidents() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
 
   useEffect(() => {
     const eventsRef = ref(db, 'events');
@@ -106,11 +108,13 @@ export function AdminIncidents() {
     };
   }, []);
 
-  const filteredIncidents = incidents.filter(i => 
-    i.patientName.toLowerCase().includes(search.toLowerCase()) || 
-    i.deviceId.toLowerCase().includes(search.toLowerCase()) ||
-    i.type.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredIncidents = incidents.filter(i => {
+    const matchesSearch = i.patientName.toLowerCase().includes(search.toLowerCase()) || 
+                          i.deviceId.toLowerCase().includes(search.toLowerCase()) ||
+                          i.type.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = filterStatus === "all" || i.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <AdminLayout>
@@ -133,10 +137,22 @@ export function AdminIncidents() {
                 className="pl-9 pr-4 py-2 bg-card border border-border rounded-xl text-sm focus:outline-none focus:border-primary w-full md:w-64"
               />
             </div>
-            <button className="flex items-center gap-2 px-4 py-2 bg-card border border-border hover:bg-muted text-foreground rounded-xl text-sm font-medium transition-colors">
-              <Filter className="size-4" />
-              Filter
-            </button>
+            <div className="relative">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="pl-9 pr-8 py-2 bg-card border border-border rounded-xl text-sm focus:outline-none focus:border-primary appearance-none cursor-pointer text-foreground h-[38px]"
+              >
+                <option value="all">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="unconfirmed">Unconfirmed</option>
+                <option value="emergency">Emergency</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="resolved">Resolved</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -186,7 +202,10 @@ export function AdminIncidents() {
                         {incident.contactNotified}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button className="text-primary hover:text-primary/80 font-medium text-sm transition-colors">
+                        <button 
+                          onClick={() => setSelectedIncident(incident)}
+                          className="text-primary hover:text-primary/80 font-medium text-sm transition-colors"
+                        >
                           Details
                         </button>
                       </td>
@@ -199,6 +218,89 @@ export function AdminIncidents() {
         </div>
         )}
       </div>
+
+      {/* Incident Details Modal */}
+      {selectedIncident && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <div className="flex items-center gap-3">
+                <div className={`inline-flex items-center justify-center size-10 rounded-xl ${selectedIncident.typeColor}`}>
+                  {selectedIncident.icon}
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">Incident Details</h3>
+                  <p className="text-xs text-muted-foreground font-mono">{selectedIncident.id}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedIncident(null)}
+                className="p-2 hover:bg-muted text-muted-foreground rounded-xl transition-colors"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Patient</p>
+                  <p className="text-sm font-medium text-foreground">{selectedIncident.patientName}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Device Serial</p>
+                  <p className="text-sm font-mono text-foreground">{selectedIncident.deviceId}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Time</p>
+                  <p className="text-sm text-foreground">{selectedIncident.time}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Status</p>
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${selectedIncident.typeColor} font-medium text-xs`}>
+                    {selectedIncident.type}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-4 bg-muted/30 rounded-xl border border-border space-y-3">
+                <div className="flex items-start gap-3">
+                  <MapPin className="size-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground font-medium mb-0.5">Location</p>
+                    <p className="text-sm text-foreground">{selectedIncident.location}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-foreground">Alert Delivery Log</h4>
+                <div className="p-3 border border-border rounded-xl bg-card text-sm">
+                  {selectedIncident.contactNotified !== "None" && selectedIncident.contactNotified !== "None (False Alarm)" ? (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Sent to <strong className="text-foreground">{selectedIncident.contactNotified}</strong></span>
+                      <span className="text-success text-xs font-medium flex items-center gap-1">
+                        <CheckCircle className="size-3" /> Delivered
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground italic">No alerts delivered ({selectedIncident.contactNotified})</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-border bg-muted/10 flex justify-end">
+              <button 
+                onClick={() => setSelectedIncident(null)}
+                className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground rounded-xl text-sm font-medium transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

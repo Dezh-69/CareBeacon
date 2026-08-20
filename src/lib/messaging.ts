@@ -9,11 +9,16 @@ export const requestNotificationPermission = async () => {
   try {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      // VAPID key from Firebase console goes here in production
-      // const token = await getToken(messaging, { vapidKey: 'YOUR_VAPID_KEY_HERE' });
-      // return token;
-      console.log('Notification permission granted.');
-      return 'dummy-token-until-vapid-key-added';
+      const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+      
+      if (!vapidKey) {
+        console.warn('Notification permission granted, but no VITE_FIREBASE_VAPID_KEY found in environment. Using dummy token.');
+        return 'dummy-token-until-vapid-key-added';
+      }
+
+      console.log('Notification permission granted. Getting FCM token...');
+      const token = await getToken(messaging, { vapidKey });
+      return token;
     }
     return null;
   } catch (error) {

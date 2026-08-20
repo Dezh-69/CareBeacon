@@ -18,6 +18,7 @@ export function AdminAuditLog() {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [filterAction, setFilterAction] = useState("all");
 
   useEffect(() => {
     const logsRef = ref(db, 'admin/auditLog');
@@ -39,11 +40,13 @@ export function AdminAuditLog() {
     return () => unsubscribe();
   }, []);
 
-  const filteredLogs = logs.filter(log => 
-    log.adminEmail?.toLowerCase().includes(search.toLowerCase()) || 
-    log.action.toLowerCase().includes(search.toLowerCase()) ||
-    log.targetId?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredLogs = logs.filter(log => {
+    const matchesSearch = log.adminEmail?.toLowerCase().includes(search.toLowerCase()) || 
+                          log.action.toLowerCase().includes(search.toLowerCase()) ||
+                          log.targetId?.toLowerCase().includes(search.toLowerCase());
+    const matchesAction = filterAction === "all" || log.action === filterAction;
+    return matchesSearch && matchesAction;
+  });
 
   return (
     <AdminLayout>
@@ -64,9 +67,20 @@ export function AdminAuditLog() {
                 className="pl-9 pr-4 py-2 bg-card border border-border rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary w-full md:w-64 transition-all"
               />
             </div>
-            <button className="p-2 bg-card border border-border rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
-              <Filter className="size-4" />
-            </button>
+            <div className="relative">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <select
+                value={filterAction}
+                onChange={(e) => setFilterAction(e.target.value)}
+                className="pl-9 pr-8 py-2 bg-card border border-border rounded-xl text-sm focus:outline-none focus:border-primary appearance-none cursor-pointer text-foreground h-[38px]"
+              >
+                <option value="all">All Actions</option>
+                <option value="View as Family">View as Family</option>
+                <option value="Status Update">Status Update</option>
+                <option value="Account Suspended">Account Suspended</option>
+                <option value="Account Activated">Account Activated</option>
+              </select>
+            </div>
           </div>
         </div>
 
