@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, User, Phone, Mail, Clock, AlertCircle, Edit2, Trash2, Star, Shield } from 'lucide-react';
+import { Plus, User, Phone, Mail, Clock, AlertCircle, Edit2, Trash2, Shield } from 'lucide-react';
 import { formatPhoneNumber } from '../../lib/formatPhone';
 import { db, ref, onValue, push, set, remove } from '../../lib/db';
 
@@ -9,13 +9,19 @@ interface Contact {
   relationship: string;
   phone: string;
   email: string;
-  priority: number;
-  isPrimary: boolean;
+  isDefault?: boolean;
 }
 
 interface EmergencyContactsProps {
   familyId: string;
 }
+
+// Default emergency contacts available for all users
+const DEFAULT_EMERGENCY_CONTACTS: Omit<Contact, 'id'>[] = [
+  { name: 'Emergency Services', relationship: 'Emergency', phone: '911', email: '', isDefault: true },
+  { name: 'Red Cross', relationship: 'Emergency', phone: '143', email: '', isDefault: true },
+  { name: 'PNP Hotline', relationship: 'Emergency', phone: '117', email: '', isDefault: true },
+];
 
 export function EmergencyContacts({ familyId }: EmergencyContactsProps) {
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -35,7 +41,7 @@ export function EmergencyContacts({ familyId }: EmergencyContactsProps) {
         const parsedContacts: Contact[] = Object.keys(data).map(key => ({
           id: key,
           ...data[key]
-        })).sort((a, b) => a.priority - b.priority);
+        }));
         setContacts(parsedContacts);
       } else {
         setContacts([]);
@@ -56,8 +62,6 @@ export function EmergencyContacts({ familyId }: EmergencyContactsProps) {
       relationship: newRelationship,
       phone: newPhone,
       email: newEmail,
-      priority: contacts.length + 1,
-      isPrimary: contacts.length === 0, // First contact is primary
     };
     
     await set(newContactRef, newContact);
@@ -74,6 +78,19 @@ export function EmergencyContacts({ familyId }: EmergencyContactsProps) {
     const contactRef = ref(db, `families/${familyId}/contacts/${id}`);
     await remove(contactRef);
   };
+
+  // Combine default emergency contacts with user-added contacts
+  const defaultContacts: Contact[] = DEFAULT_EMERGENCY_CONTACTS.map((c, i) => ({
+    ...c,
+    id: `default-${i}`,
+  }));
+
+  const allContacts = [...contacts, ...defaultContacts];
+
+  const getAvatarColor = (index: number) => {
+    const colors = ['bg-primary', 'bg-warning', 'bg-success', 'bg-secondary'];
+    return colors[index % colors.length];
+  };
   
   return (
     <div className="space-y-6">
@@ -81,7 +98,7 @@ export function EmergencyContacts({ familyId }: EmergencyContactsProps) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold mb-1 text-foreground">Emergency Network</h2>
-          <p className="text-sm text-muted-foreground">Priority-based alert system</p>
+          <p className="text-sm text-muted-foreground">All contacts are notified simultaneously when a fall is detected</p>
         </div>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
@@ -142,69 +159,39 @@ export function EmergencyContacts({ familyId }: EmergencyContactsProps) {
           </div>
         </div>
       )}
-      
-      {/* Alert Settings */}
+
+      {/* Simultaneous Alert Info Banner */}
       <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-primary/10 rounded-lg">
             <Shield className="size-5 text-primary" />
           </div>
-          <h3 className="font-semibold text-foreground">Alert Configuration</h3>
+          <div>
+            <h3 className="font-semibold text-foreground">Simultaneous Alert System</h3>
+            <p className="text-xs text-muted-foreground">All contacts below are notified at the same time — no delays</p>
+          </div>
         </div>
-        
-        <div className="grid md:grid-cols-2 gap-4">
-          {[
-            { label: 'Send SMS alerts to all contacts', checked: true },
-            { label: 'Enable voice call escalation after 2 minutes', checked: true },
-            { label: 'Send location coordinates with every alert', checked: true },
-            { label: 'Email notifications for non-urgent events', checked: false },
-          ].map((setting, index) => (
-            <label key={index} className="flex items-center gap-3 p-3 bg-muted border border-border rounded-lg hover:border-primary/30 transition cursor-pointer">
-              <input
-                type="checkbox"
-                className="size-4 rounded border-border text-primary focus:ring-primary"
-                defaultChecked={setting.checked}
-              />
-              <span className="text-sm text-foreground">{setting.label}</span>
-            </label>
-          ))}
-        </div>
+        <p className="text-sm text-muted-foreground">
+          When a fall incident is detected, <strong className="text-foreground">all emergency contacts</strong> (including the default emergency services) will be contacted simultaneously via SMS and call. There is no waiting time between alerts.
+        </p>
       </div>
       
       {/* Contact Cards */}
       <div className="space-y-4">
+        {/* User-Added Contacts */}
         {contacts.map((contact, index) => (
           <div key={contact.id} className="relative group">
-            <div className={`relative bg-card border rounded-2xl p-6 shadow-sm hover:shadow-md transition-all ${
-              contact.isPrimary 
-                ? 'border-warning/50' 
-                : 'border-border hover:border-primary/30'
-            }`}>
+            <div className="relative bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-primary/30 transition-all">
               <div className="flex items-start justify-between mb-5">
                 <div className="flex items-center gap-4">
                   {/* Avatar */}
-                  <div className={`relative size-14 rounded-xl flex items-center justify-center font-bold text-lg text-white ${
-                    index === 0 ? 'bg-warning' :
-                    index === 1 ? 'bg-primary' :
-                    'bg-secondary'
-                  }`}>
+                  <div className={`relative size-14 rounded-xl flex items-center justify-center font-bold text-lg text-white ${getAvatarColor(index)}`}>
                     {contact.name.split(' ').map(n => n[0]).join('')}
                   </div>
                   
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-lg text-foreground">{contact.name}</h3>
-                      {contact.isPrimary && (
-                        <span className="flex items-center gap-1 px-2 py-0.5 bg-warning/10 text-warning border border-warning/20 rounded-lg text-xs font-medium">
-                          <Star className="size-3 fill-current" />
-                          Primary
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-2">{contact.relationship}</p>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 text-primary border border-primary/20 rounded-lg text-xs font-medium">
-                      Priority {contact.priority}
-                    </span>
+                    <h3 className="font-semibold text-lg text-foreground">{contact.name}</h3>
+                    <p className="text-sm text-muted-foreground">{contact.relationship}</p>
                   </div>
                 </div>
                 
@@ -230,13 +217,15 @@ export function EmergencyContacts({ familyId }: EmergencyContactsProps) {
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-3 p-3 bg-muted border border-border rounded-xl">
-                  <Mail className="size-4 text-muted-foreground flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">Email</p>
-                    <p className="text-sm font-medium text-foreground truncate">{contact.email}</p>
+                {contact.email && (
+                  <div className="flex items-center gap-3 p-3 bg-muted border border-border rounded-xl">
+                    <Mail className="size-4 text-muted-foreground flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-0.5">Email</p>
+                      <p className="text-sm font-medium text-foreground truncate">{contact.email}</p>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
@@ -248,7 +237,7 @@ export function EmergencyContacts({ familyId }: EmergencyContactsProps) {
           <div className="inline-flex p-6 bg-muted rounded-2xl mb-4">
             <Phone className="size-12 text-muted-foreground" />
           </div>
-          <p className="text-muted-foreground mb-6">No emergency contacts configured</p>
+          <p className="text-muted-foreground mb-6">No personal emergency contacts added yet</p>
           <button
             onClick={() => setShowAddForm(true)}
             className="px-6 py-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl transition"
@@ -258,31 +247,27 @@ export function EmergencyContacts({ familyId }: EmergencyContactsProps) {
         </div>
       )}
       
-      {/* Emergency Services */}
+      {/* Default Emergency Services — always shown */}
       <div className="bg-card border border-destructive/20 rounded-2xl p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-destructive/10 rounded-lg">
             <AlertCircle className="size-5 text-destructive" />
           </div>
           <div>
-            <h3 className="font-semibold text-destructive">Philippines Emergency Services</h3>
-            <p className="text-xs text-muted-foreground">Quick access to emergency hotlines</p>
+            <h3 className="font-semibold text-destructive">Default Emergency Services</h3>
+            <p className="text-xs text-muted-foreground">These numbers are automatically included for all users and cannot be removed</p>
           </div>
         </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[
-            { name: 'Emergency', number: '911' },
-            { name: 'Red Cross', number: '143' },
-            { name: 'PNP Hotline', number: '117' },
-          ].map((service, index) => (
+          {DEFAULT_EMERGENCY_CONTACTS.map((service, index) => (
             <a 
               key={index} 
-              href={`tel:${service.number}`}
+              href={`tel:${service.phone}`}
               className="block p-4 bg-destructive/5 border border-destructive/20 rounded-xl text-center hover:bg-destructive/10 transition"
             >
               <p className="text-xs text-destructive mb-1">{service.name}</p>
-              <p className="text-xl font-bold text-destructive">{service.number}</p>
+              <p className="text-xl font-bold text-destructive">{service.phone}</p>
             </a>
           ))}
         </div>

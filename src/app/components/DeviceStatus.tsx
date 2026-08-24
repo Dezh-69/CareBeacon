@@ -193,39 +193,8 @@ export function DeviceStatus({ deviceId }: DeviceStatusProps) {
           </div>
         </div>
       </div>
-      
-      {/* Sensor Status */}
-      <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-        <h3 className="text-lg font-semibold mb-6 text-foreground">Hardware Components</h3>
-        
-        <div className="grid md:grid-cols-2 gap-4">
-          {[
-            { name: 'MPU6050 Accelerometer', desc: 'Motion detection operational', status: 'active' },
-            { name: 'NEO-6M GPS Module', desc: 'Location tracking operational', status: 'active' },
-            { name: 'SIM800L GSM Module', desc: 'Communication operational', status: 'active' },
-            { name: 'Audio System', desc: 'Two-way audio ready', status: 'active' },
-          ].map((sensor, index) => (
-            <div key={index} className="relative group/item">
-              <div className="relative p-4 bg-muted border border-border rounded-xl hover:border-success/30 transition shadow-sm">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <p className="font-medium mb-1 text-foreground">{sensor.name}</p>
-                    <p className="text-xs text-muted-foreground">{sensor.desc}</p>
-                  </div>
-                  <span className="px-2 py-1 bg-success/10 text-success border border-success/20 rounded-lg text-xs font-medium">
-                    Active
-                  </span>
-                </div>
-                
-                {/* Status indicator bar */}
-                <div className="h-1 bg-border rounded-full overflow-hidden">
-                  <div className="h-full w-full bg-success rounded-full"></div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+
+
     </div>
   );
 }

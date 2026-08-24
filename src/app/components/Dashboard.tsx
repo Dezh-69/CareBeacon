@@ -1,5 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MapPin, Activity, Bell, LogOut, User, Phone, AlertTriangle, CheckCircle, Battery, Wifi, TrendingUp, Edit2, Plus, Minus, X, PhoneCall, XCircle, Clock, Volume2, VolumeX, Navigation, Calendar, BarChart3, AlertOctagon } from 'lucide-react';
+import { MapPin, Activity, Bell, LogOut, User, Phone, AlertTriangle, CheckCircle, Battery, Wifi, TrendingUp, X, PhoneCall, XCircle, Clock, Volume2, VolumeX, Navigation, Calendar, BarChart3, AlertOctagon, Settings } from 'lucide-react';
+import { UserSettings } from './UserSettings';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
 import { LocationMap } from './LocationMap';
 import { FallHistory } from './FallHistory';
 import { DeviceStatus } from './DeviceStatus';
@@ -19,7 +28,7 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-type TabType = 'map' | 'history' | 'device' | 'audio' | 'contacts' | 'join_requests' | 'schedule' | 'analytics';
+type TabType = 'map' | 'history' | 'device' | 'audio' | 'contacts' | 'join_requests' | 'schedule' | 'analytics' | 'settings';
 
 const fallbackDeviceData = {
   status: 'offline',
@@ -56,8 +65,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [loadingContext, setLoadingContext] = useState(true);
   
-  const [showAdjustModal, setShowAdjustModal] = useState(false);
-  const [adjustAmount, setAdjustAmount] = useState(0);
+
 
   // Link Device Form State
   const [linkSerial, setLinkSerial] = useState('');
@@ -261,18 +269,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
   const isOffline = deviceData.lastUpdate ? (Date.now() - new Date(deviceData.lastUpdate).getTime() > 15 * 60 * 1000) : false;
   const isLowBattery = deviceData.battery < 15;
 
-  const handleAdjustIncidents = async () => {
-    if (!familyId || adjustAmount === 0) return;
-    try {
-      await update(ref(db, `families/${familyId}`), {
-        incidentsCount: Math.max(0, incidentsCount + adjustAmount)
-      });
-      setShowAdjustModal(false);
-      setAdjustAmount(0);
-    } catch (error) {
-      console.error("Error updating incident count:", error);
-    }
-  };
+
   
   const simulateFall = () => {
     const deviceRef = ref(db, `devices/${deviceId}`);
@@ -537,13 +534,32 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
               <span className="text-sm font-medium capitalize text-foreground">{deviceData.status}</span>
             </div>
             
-            <button
-              onClick={handleLogoutClick}
-              className="p-2.5 hover:bg-muted rounded-xl transition-colors text-muted-foreground hover:text-foreground"
-              title="Logout"
-            >
-              <LogOut className="size-4" />
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <div className="flex items-center justify-center size-10 rounded-full bg-secondary text-primary font-medium cursor-pointer hover:bg-secondary/80 transition-colors">
+                  {user.displayName?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U'}
+                </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => setActiveTab('settings')}
+                  className="cursor-pointer"
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleLogoutClick}
+                  className="text-destructive focus:text-destructive cursor-pointer"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Sign Out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
@@ -648,6 +664,17 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
                     Join Requests
                   </button>
                 </li>
+                <li>
+                  <button
+                    onClick={() => setActiveTab('settings')}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      activeTab === 'settings' ? 'bg-secondary text-primary' : 'text-foreground hover:bg-secondary/50 hover:text-primary'
+                    }`}
+                  >
+                    <Settings className="size-4" />
+                    Settings
+                  </button>
+                </li>
               </ul>
             </div>
           </nav>
@@ -711,13 +738,6 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
                     <div className="p-2.5 bg-destructive/10 rounded-xl">
                       <Bell className="size-5 text-destructive" />
                     </div>
-                    <button 
-                      onClick={() => setShowAdjustModal(true)} 
-                      className="p-1.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
-                      title="Adjust incident count"
-                    >
-                      <Edit2 className="size-4" />
-                    </button>
                   </div>
                   <p className="text-muted-foreground text-sm mb-1">Incidents</p>
                   <p className="text-2xl font-semibold text-foreground">{incidentsCount}</p>
@@ -743,67 +763,12 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
               {activeTab === 'schedule' && <CaregiverSchedule familyId={familyId!} />}
               {activeTab === 'contacts' && <EmergencyContacts familyId={familyId!} />}
               {activeTab === 'join_requests' && <JoinRequests familyId={familyId!} />}
+              {activeTab === 'settings' && <UserSettings />}
             </div>
           </main>
       </div>
 
-      {/* Adjust Incident Count Modal */}
-      {showAdjustModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center p-4 border-b border-border bg-muted/30">
-              <h3 className="font-semibold text-foreground">Adjust Incident Count</h3>
-              <button 
-                onClick={() => { setShowAdjustModal(false); setAdjustAmount(0); }}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="size-5" />
-              </button>
-            </div>
-            
-            <div className="p-6">
-              <p className="text-sm text-muted-foreground mb-6">
-                If a false alarm was recorded, you can manually offset the total incident count here. 
-                Current count: <strong className="text-foreground">{incidentsCount}</strong>
-              </p>
-              
-              <div className="flex items-center justify-center gap-6 mb-8">
-                <button 
-                  onClick={() => setAdjustAmount(prev => prev - 1)}
-                  className="p-3 bg-muted hover:bg-muted/80 text-foreground rounded-full transition-colors"
-                >
-                  <Minus className="size-5" />
-                </button>
-                <span className="text-3xl font-bold w-12 text-center text-foreground">
-                  {adjustAmount > 0 ? '+' : ''}{adjustAmount}
-                </span>
-                <button 
-                  onClick={() => setAdjustAmount(prev => prev + 1)}
-                  className="p-3 bg-muted hover:bg-muted/80 text-foreground rounded-full transition-colors"
-                >
-                  <Plus className="size-5" />
-                </button>
-              </div>
-              
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => { setShowAdjustModal(false); setAdjustAmount(0); }}
-                  className="flex-1 px-4 py-2 bg-muted border border-border rounded-xl text-foreground font-medium hover:bg-muted/80 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handleAdjustIncidents}
-                  disabled={adjustAmount === 0}
-                  className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Apply {adjustAmount > 0 ? '+' : ''}{adjustAmount === 0 ? '' : adjustAmount}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* ===== FULL-SCREEN EMERGENCY ALERT OVERLAY ===== */}
       {hasAlert && (

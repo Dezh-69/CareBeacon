@@ -4,7 +4,7 @@ import { StatusBadge } from "./StatusBadge";
 import { SkeletonTable } from "../ui/skeleton";
 import { db, ref, onValue, push, set, update } from "../../../lib/db";
 import { auth } from "../../../lib/firebase";
-import { Search, Filter, Ban, ShieldCheck, PlusCircle, X, PackagePlus, AlertCircle, Check } from "lucide-react";
+import { Search, Filter, Ban, ShieldCheck, PlusCircle, X, PackagePlus, AlertCircle, Check, Edit2, Plus, Minus } from "lucide-react";
 
 interface Family {
   id: string;
@@ -32,6 +32,11 @@ export function AdminFamilies() {
   const [provisionLoading, setProvisionLoading] = useState(false);
   const [provisionError, setProvisionError] = useState("");
   const [provisionSuccess, setProvisionSuccess] = useState(false);
+
+  // Incident adjustment modal state
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [adjustFamily, setAdjustFamily] = useState<Family | null>(null);
+  const [adjustAmount, setAdjustAmount] = useState(0);
 
   useEffect(() => {
     const familiesRef = ref(db, 'families');
@@ -342,6 +347,16 @@ export function AdminFamilies() {
                           >
                             {family.accountStatus === 'active' ? 'Suspend' : 'Activate'}
                           </button>
+                          <button
+                            onClick={() => {
+                              setAdjustFamily(family);
+                              setAdjustAmount(0);
+                              setShowAdjustModal(true);
+                            }}
+                            className="text-muted-foreground hover:text-foreground font-medium text-sm transition-colors"
+                          >
+                            Adjust
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -471,6 +486,91 @@ export function AdminFamilies() {
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Adjust Incident Count Modal */}
+      {showAdjustModal && adjustFamily && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center p-4 border-b border-border bg-muted/30">
+              <h3 className="font-semibold text-foreground">Adjust Incident Count</h3>
+              <button 
+                onClick={() => { setShowAdjustModal(false); setAdjustFamily(null); setAdjustAmount(0); }}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <p className="text-sm text-muted-foreground mb-2">
+                Adjusting incidents for <strong className="text-foreground">{adjustFamily.name}</strong>
+              </p>
+              <p className="text-sm text-muted-foreground mb-6">
+                Current count: <strong className="text-foreground">{adjustFamily.totalIncidents}</strong>
+              </p>
+              
+              <div className="flex items-center justify-center gap-6 mb-8">
+                <button 
+                  onClick={() => setAdjustAmount(prev => prev - 1)}
+                  className="p-3 bg-muted hover:bg-muted/80 text-foreground rounded-full transition-colors"
+                >
+                  <Minus className="size-5" />
+                </button>
+                <span className="text-3xl font-bold w-12 text-center text-foreground">
+                  {adjustAmount > 0 ? '+' : ''}{adjustAmount}
+                </span>
+                <button 
+                  onClick={() => setAdjustAmount(prev => prev + 1)}
+                  className="p-3 bg-muted hover:bg-muted/80 text-foreground rounded-full transition-colors"
+                >
+                  <Plus className="size-5" />
+                </button>
+              </div>
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => { setShowAdjustModal(false); setAdjustFamily(null); setAdjustAmount(0); }}
+                  className="flex-1 px-4 py-2 bg-muted border border-border rounded-xl text-foreground font-medium hover:bg-muted/80 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={async () => {
+                    if (!adjustFamily || adjustAmount === 0) return;
+                    try {
+                      await update(ref(db, `families/${adjustFamily.id}`), {
+                        incidentsCount: Math.max(0, adjustFamily.totalIncidents + adjustAmount)
+                      });
+                      // Log the action
+                      const user = auth.currentUser;
+                      if (user) {
+                        const logRef = push(ref(db, 'admin/auditLog'));
+                        await set(logRef, {
+                          action: `Adjusted incident count by ${adjustAmount > 0 ? '+' : ''}${adjustAmount}`,
+                          adminId: user.uid,
+                          adminEmail: user.email,
+                          targetId: adjustFamily.id,
+                          targetDevice: adjustFamily.deviceId,
+                          timestamp: new Date().toISOString(),
+                        });
+                      }
+                      setShowAdjustModal(false);
+                      setAdjustFamily(null);
+                      setAdjustAmount(0);
+                    } catch (error) {
+                      console.error("Error updating incident count:", error);
+                    }
+                  }}
+                  disabled={adjustAmount === 0}
+                  className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Apply {adjustAmount > 0 ? '+' : ''}{adjustAmount === 0 ? '' : adjustAmount}
+                </button>
+              </div>
             </div>
           </div>
         </div>
