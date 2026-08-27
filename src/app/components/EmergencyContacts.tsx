@@ -160,21 +160,7 @@ export function EmergencyContacts({ familyId }: EmergencyContactsProps) {
         </div>
       )}
 
-      {/* Simultaneous Alert Info Banner */}
-      <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <Shield className="size-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-foreground">Simultaneous Alert System</h3>
-            <p className="text-xs text-muted-foreground">All contacts below are notified at the same time — no delays</p>
-          </div>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          When a fall incident is detected, <strong className="text-foreground">all emergency contacts</strong> (including the default emergency services) will be contacted simultaneously via SMS and call. There is no waiting time between alerts.
-        </p>
-      </div>
+
       
       {/* Contact Cards */}
       <div className="space-y-4">

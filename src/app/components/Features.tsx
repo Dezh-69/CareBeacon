@@ -33,8 +33,8 @@ const features = [
   },
   {
     icon: Bell,
-    title: 'Multi-Tier Alerts',
-    description: 'Intelligent alert escalation with confirmation tracking prevents missed notifications and reduces SMS spam.',
+    title: 'Simultaneous Alerts',
+    description: 'Instant alerts sent to all on-duty caregivers simultaneously to ensure rapid response.',
     color: 'bg-teal-500',
   },
 ];

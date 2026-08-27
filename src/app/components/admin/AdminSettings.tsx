@@ -11,7 +11,6 @@ export function AdminSettings() {
     sessionTimeout: "30",
     twoFactorRequired: false,
     inactivityThreshold: "60",
-    escalationTiming: "15",
     dataRetentionLocation: "90",
     dataRetentionIncidents: "365",
   });
@@ -103,16 +102,6 @@ export function AdminSettings() {
                     type="number"
                     value={settings.inactivityThreshold}
                     onChange={(e) => setSettings({...settings, inactivityThreshold: e.target.value})}
-                    className="w-full px-4 py-2 bg-input-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Escalation Timing (Seconds)</label>
-                  <p className="text-xs text-muted-foreground mb-2">Time to wait before calling next contact</p>
-                  <input 
-                    type="number"
-                    value={settings.escalationTiming}
-                    onChange={(e) => setSettings({...settings, escalationTiming: e.target.value})}
                     className="w-full px-4 py-2 bg-input-background border border-border rounded-xl text-foreground text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                   />
                 </div>
