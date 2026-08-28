@@ -22,7 +22,6 @@ const navigation = [
   { name: "Incidents", href: "/admin/incidents", section: "Monitoring", alert: 6 },
   { name: "Alert delivery", href: "/admin/alert-delivery", section: "Monitoring" },
   { name: "Tickets", href: "/admin/tickets", section: "Support", count: 14 },
-  { name: "Audit log", href: "/admin/audit-log", section: "Support" },
 ];
 
 

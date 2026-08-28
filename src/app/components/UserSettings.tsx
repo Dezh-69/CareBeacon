@@ -4,7 +4,7 @@ import { auth } from '../../lib/firebase';
 import { db, ref, update } from '../../lib/db';
 import {
   updatePassword,
-  updateEmail,
+  verifyBeforeUpdateEmail,
   reauthenticateWithCredential,
   EmailAuthProvider,
 } from 'firebase/auth';
@@ -28,19 +28,33 @@ export function UserSettings() {
   const [passwordMsg, setPasswordMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
+
+  // Field-level inline validation errors
+  const [inlineEmailError, setInlineEmailError] = useState('');
+  const [inlinePhoneError, setInlinePhoneError] = useState('');
+  const [inlinePasswordError, setInlinePasswordError] = useState('');
+  const [inlineConfirmError, setInlineConfirmError] = useState('');
 
   const user = auth.currentUser;
 
   const handleUpdateEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newEmail.trim()) return;
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmail.trim())) {
+      setEmailMsg({ type: 'error', text: 'Please enter a valid email address.' });
+      return;
+    }
+
     setEmailLoading(true);
     setEmailMsg(null);
     try {
-      await updateEmail(user, newEmail.trim());
-      // Also update in database
-      await update(ref(db, `users/${user.uid}`), { email: newEmail.trim() });
-      setEmailMsg({ type: 'success', text: 'Email updated successfully.' });
+      await verifyBeforeUpdateEmail(user, newEmail.trim());
+      // Only updating in database after they verify could be ideal, but Firebase Auth links 
+      // the new email once verified. We just tell the user to verify it.
+      setEmailMsg({ type: 'success', text: 'A verification link has been sent to your new email. Please verify the new email before the change is applied.' });
       setNewEmail('');
     } catch (err: any) {
       const msg = err.code === 'auth/requires-recent-login'
@@ -55,6 +69,13 @@ export function UserSettings() {
   const handleUpdatePhone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newPhone.trim()) return;
+
+    const phoneRegex = /^09\d{9}$/;
+    if (!phoneRegex.test(newPhone.trim())) {
+      setPhoneMsg({ type: 'error', text: 'Phone number must contain exactly 11 digits and start with 09 (e.g., 09123456789).' });
+      return;
+    }
+
     setPhoneLoading(true);
     setPhoneMsg(null);
     try {
@@ -76,11 +97,19 @@ export function UserSettings() {
       setPasswordMsg({ type: 'error', text: 'New passwords do not match.' });
       return;
     }
-    if (newPassword.length < 6) {
-      setPasswordMsg({ type: 'error', text: 'Password must be at least 6 characters.' });
+    
+    const passwordRegex = /^(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{12,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      setPasswordMsg({ type: 'error', text: 'Password must be at least 12 characters long, with at least 1 uppercase letter and 1 special character.' });
       return;
     }
 
+    setShowPasswordConfirm(true);
+  };
+
+  const confirmUpdatePassword = async () => {
+    if (!user) return;
+    setShowPasswordConfirm(false);
     setPasswordLoading(true);
     setPasswordMsg(null);
     try {
@@ -173,11 +202,20 @@ export function UserSettings() {
             <input
               type="email"
               value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
+              onChange={(e) => {
+                setNewEmail(e.target.value);
+                const val = e.target.value;
+                if (val.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim())) {
+                  setInlineEmailError('Please enter a valid email address.');
+                } else {
+                  setInlineEmailError('');
+                }
+              }}
               placeholder="new-email@example.com"
               className="w-full px-4 py-2.5 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition text-sm"
               required
             />
+            {inlineEmailError && <p className="text-xs text-destructive mt-1">{inlineEmailError}</p>}
           </div>
           <button
             type="submit"
@@ -209,11 +247,20 @@ export function UserSettings() {
             <input
               type="tel"
               value={newPhone}
-              onChange={(e) => setNewPhone(e.target.value)}
-              placeholder="+63 917 123 4567"
+              onChange={(e) => {
+                setNewPhone(e.target.value);
+                const val = e.target.value;
+                if (val.trim() && !/^09\d{9}$/.test(val.trim())) {
+                  setInlinePhoneError('Phone number must contain exactly 11 digits and start with 09.');
+                } else {
+                  setInlinePhoneError('');
+                }
+              }}
+              placeholder="09123456789"
               className="w-full px-4 py-2.5 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition text-sm"
               required
             />
+            {inlinePhoneError && <p className="text-xs text-destructive mt-1">{inlinePhoneError}</p>}
           </div>
           <button
             type="submit"
@@ -266,7 +313,15 @@ export function UserSettings() {
               <input
                 type={showNewPassword ? 'text' : 'password'}
                 value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
+                onChange={(e) => {
+                  setNewPassword(e.target.value);
+                  const val = e.target.value;
+                  if (val && !/^(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{12,}$/.test(val)) {
+                    setInlinePasswordError('Password must be at least 12 chars, with 1 uppercase and 1 special char.');
+                  } else {
+                    setInlinePasswordError('');
+                  }
+                }}
                 placeholder="Enter new password"
                 className="w-full px-4 py-2.5 pr-10 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition text-sm"
                 required
@@ -279,17 +334,26 @@ export function UserSettings() {
                 {showNewPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
+            {inlinePasswordError && <p className="text-xs text-destructive mt-1">{inlinePasswordError}</p>}
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Confirm New Password</label>
             <input
               type="password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                if (e.target.value && e.target.value !== newPassword) {
+                  setInlineConfirmError('Passwords do not match.');
+                } else {
+                  setInlineConfirmError('');
+                }
+              }}
               placeholder="Confirm new password"
               className="w-full px-4 py-2.5 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition text-sm"
               required
             />
+            {inlineConfirmError && <p className="text-xs text-destructive mt-1">{inlineConfirmError}</p>}
           </div>
           <button
             type="submit"
@@ -300,6 +364,37 @@ export function UserSettings() {
           </button>
         </div>
       </form>
+
+      {/* Password Confirmation Modal */}
+      {showPasswordConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl p-6 shadow-xl max-w-sm w-full mx-4">
+            <div className="flex items-center justify-center size-12 bg-primary/10 rounded-xl mx-auto mb-4">
+              <Lock className="size-6 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground text-center mb-2">Change Password</h3>
+            <p className="text-sm text-muted-foreground text-center mb-6">
+              Are you sure you want to change your password?
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPasswordConfirm(false)}
+                className="flex-1 py-2.5 px-4 bg-muted hover:bg-muted/80 text-foreground rounded-xl text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmUpdatePassword}
+                className="flex-1 py-2.5 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-medium transition-colors"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

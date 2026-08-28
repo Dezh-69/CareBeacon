@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, setPersistence, browserSessionPersistence } from 'firebase/auth';
 import { getDatabase } from 'firebase/database';
 import { getMessaging } from 'firebase/messaging';
 
@@ -17,5 +17,11 @@ const firebaseConfig = {
 // Initialize Firebase
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+
+// Set session persistence so users are automatically logged out when the browser is closed
+setPersistence(auth, browserSessionPersistence).catch((error) => {
+  console.error("Auth persistence error:", error);
+});
+
 export const db = getDatabase(app);
 export const messaging = typeof window !== 'undefined' ? getMessaging(app) : null;

@@ -23,6 +23,13 @@ export function Login({ onSignUpComplete }: LoginProps) {
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Field-level error states
+  const [nameError, setNameError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [confirmError, setConfirmError] = useState('');
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -51,24 +58,37 @@ export function Login({ onSignUpComplete }: LoginProps) {
       return;
     }
 
+    const nameRegex = /^[a-zA-Z\s]+$/;
+    if (!nameRegex.test(name.trim())) {
+      setError('Full Name should only contain letters and spaces.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    const phoneRegex = /^09\d{9}$/;
+    if (!phoneRegex.test(phoneNumber.trim())) {
+      setError('Phone number must contain exactly 11 digits and start with 09 (e.g., 09123456789).');
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    const passwordRegex = /^(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{12,}$/;
+    if (!passwordRegex.test(password)) {
+      setError('Password must be at least 12 characters long, with at least 1 uppercase letter and 1 special character.');
       return;
     }
 
     if (monitoredPersonName.trim().length < 2) {
       setError('Please enter the full name of the monitored person.');
-      return;
-    }
-
-    const phoneRegex = /^\+?[\d\s\-()]{7,15}$/;
-    if (!phoneRegex.test(phoneNumber.trim())) {
-      setError('Please enter a valid phone number.');
       return;
     }
 
@@ -272,7 +292,7 @@ export function Login({ onSignUpComplete }: LoginProps) {
           <div className="flex gap-2 mb-6 p-1 bg-muted rounded-xl">
             <button
               type="button"
-              onClick={() => { setIsSignUp(false); setError(''); setInfo(''); }}
+              onClick={() => { setIsSignUp(false); setError(''); setInfo(''); setEmailError(''); setPasswordError(''); setPhoneError(''); setNameError(''); setConfirmError(''); }}
               className={`flex-1 py-2.5 rounded-lg font-medium transition-all duration-200 text-sm ${
                 !isSignUp
                   ? 'bg-card text-foreground shadow-sm border border-border'
@@ -283,7 +303,7 @@ export function Login({ onSignUpComplete }: LoginProps) {
             </button>
             <button
               type="button"
-              onClick={() => { setIsSignUp(true); setError(''); setInfo(''); }}
+              onClick={() => { setIsSignUp(true); setError(''); setInfo(''); setEmailError(''); setPasswordError(''); setPhoneError(''); setNameError(''); setConfirmError(''); }}
               className={`flex-1 py-2.5 rounded-lg font-medium transition-all duration-200 text-sm ${
                 isSignUp
                   ? 'bg-card text-foreground shadow-sm border border-border'
@@ -318,11 +338,20 @@ export function Login({ onSignUpComplete }: LoginProps) {
                     <input
                       type="text"
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      onChange={(e) => {
+                        setName(e.target.value);
+                        const val = e.target.value;
+                        if (val.trim() && !/^[a-zA-Z\s]+$/.test(val.trim())) {
+                          setNameError('Full Name should only contain letters and spaces.');
+                        } else {
+                          setNameError('');
+                        }
+                      }}
                       className="w-full px-4 py-2.5 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm"
                       placeholder="Juan Dela Cruz"
                       required={isSignUp}
                     />
+                    {nameError && <p className="text-xs text-destructive mt-1">{nameError}</p>}
                   </div>
                 )}
 
@@ -331,11 +360,20 @@ export function Login({ onSignUpComplete }: LoginProps) {
                   <input
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      const val = e.target.value;
+                      if (val.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim())) {
+                        setEmailError('Please enter a valid email address.');
+                      } else {
+                        setEmailError('');
+                      }
+                    }}
                     className="w-full px-4 py-2.5 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm"
                     placeholder="caregiver@example.com"
                     required
                   />
+                  {emailError && <p className="text-xs text-destructive mt-1">{emailError}</p>}
                 </div>
 
                 {isSignUp && (
@@ -346,12 +384,21 @@ export function Login({ onSignUpComplete }: LoginProps) {
                     </label>
                     <input
                       type="tel"
-                      value={phoneNumber || '+63'}
-                      onChange={(e) => setPhoneNumber(formatPhoneNumber(e.target.value))}
+                      value={phoneNumber}
+                      onChange={(e) => {
+                        setPhoneNumber(e.target.value);
+                        const val = e.target.value;
+                        if (val.trim() && !/^09\d{9}$/.test(val.trim())) {
+                          setPhoneError('Phone number must contain exactly 11 digits and start with 09.');
+                        } else {
+                          setPhoneError('');
+                        }
+                      }}
                       className="w-full px-4 py-2.5 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm"
-                      placeholder="+63 917 123 4567"
+                      placeholder="09123456789"
                       required={isSignUp}
                     />
+                    {phoneError && <p className="text-xs text-destructive mt-1">{phoneError}</p>}
                   </div>
                 )}
 
@@ -361,7 +408,15 @@ export function Login({ onSignUpComplete }: LoginProps) {
                     <input
                       type={showPassword ? "text" : "password"}
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        const val = e.target.value;
+                        if (isSignUp && val && !/^(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{12,}$/.test(val)) {
+                          setPasswordError('Password must be at least 12 chars, with 1 uppercase and 1 special char.');
+                        } else {
+                          setPasswordError('');
+                        }
+                      }}
                       className="w-full px-4 py-2.5 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm pr-10"
                       placeholder="••••••••"
                       required
@@ -374,6 +429,7 @@ export function Login({ onSignUpComplete }: LoginProps) {
                       {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
                   </div>
+                  {passwordError && <p className="text-xs text-destructive mt-1">{passwordError}</p>}
                 </div>
                 
                 {isSignUp && (
@@ -383,7 +439,14 @@ export function Login({ onSignUpComplete }: LoginProps) {
                       <input
                         type={showConfirmPassword ? "text" : "password"}
                         value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          if (e.target.value && e.target.value !== password) {
+                            setConfirmError('Passwords do not match.');
+                          } else {
+                            setConfirmError('');
+                          }
+                        }}
                         className="w-full px-4 py-2.5 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm pr-10"
                         placeholder="••••••••"
                         required={isSignUp}
@@ -396,6 +459,7 @@ export function Login({ onSignUpComplete }: LoginProps) {
                         {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                       </button>
                     </div>
+                    {confirmError && <p className="text-xs text-destructive mt-1">{confirmError}</p>}
                   </div>
                 )}
               </div>

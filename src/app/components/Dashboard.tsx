@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MapPin, Activity, Bell, LogOut, User, Phone, AlertTriangle, CheckCircle, Battery, Wifi, TrendingUp, X, PhoneCall, XCircle, Clock, Volume2, VolumeX, Navigation, Calendar, BarChart3, AlertOctagon, Settings } from 'lucide-react';
+import { Plus, MapPin, Activity, Bell, LogOut, User, Phone, AlertTriangle, CheckCircle, Battery, Wifi, TrendingUp, X, PhoneCall, XCircle, Clock, Volume2, VolumeX, Navigation, Calendar, BarChart3, AlertOctagon, Settings } from 'lucide-react';
 import { UserSettings } from './UserSettings';
 import {
   DropdownMenu,
@@ -662,17 +662,6 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
                   >
                     <User className="size-4" />
                     Join Requests
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => setActiveTab('settings')}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      activeTab === 'settings' ? 'bg-secondary text-primary' : 'text-foreground hover:bg-secondary/50 hover:text-primary'
-                    }`}
-                  >
-                    <Settings className="size-4" />
-                    Settings
                   </button>
                 </li>
               </ul>
