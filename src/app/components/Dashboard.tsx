@@ -25,6 +25,7 @@ import type { User as FirebaseUser } from 'firebase/auth';
 
 interface DashboardProps {
   user: FirebaseUser;
+  impersonatedFamilyId?: string;
   onLogout: () => void;
 }
 
@@ -45,7 +46,7 @@ const fallbackDeviceData = {
   },
 };
 
-export function Dashboard({ user, onLogout }: DashboardProps) {
+export function Dashboard({ user, impersonatedFamilyId, onLogout }: DashboardProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLogoutClick = () => {
@@ -60,6 +61,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
   const [deviceData, setDeviceData] = useState<any>(fallbackDeviceData);
   const [hasAlert, setHasAlert] = useState(false);
   const [incidentsCount, setIncidentsCount] = useState(0);
+  const [incidentOffset, setIncidentOffset] = useState(0);
   
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [deviceId, setDeviceId] = useState<string | null>(null);
@@ -84,7 +86,22 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
 
   // Fetch user's family and linked device
   useEffect(() => {
-    if (!user) return;
+    if (!user && !impersonatedFamilyId) return;
+
+    if (impersonatedFamilyId) {
+      setFamilyId(impersonatedFamilyId);
+      const famRef = ref(db, `families/${impersonatedFamilyId}`);
+      const unsubFam = onValue(famRef, (famSnap) => {
+        const famData = famSnap.val();
+        const resolvedDeviceId = famData?.deviceId || famData?.deviceSerialNumber;
+        if (resolvedDeviceId) {
+          setDeviceId(resolvedDeviceId);
+        }
+        setIncidentOffset(famData?.incidentOffset || 0);
+        setLoadingContext(false);
+      });
+      return () => unsubFam();
+    }
     
     const userRef = ref(db, `users/${user.uid}`);
     const unsubUser = onValue(userRef, (snapshot) => {
@@ -96,9 +113,11 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
         const famRef = ref(db, `families/${userData.familyId}`);
         const unsubFam = onValue(famRef, (famSnap) => {
           const famData = famSnap.val();
-          if (famData?.deviceId) {
-            setDeviceId(famData.deviceId);
+          const resolvedDeviceId = famData?.deviceId || famData?.deviceSerialNumber;
+          if (resolvedDeviceId) {
+            setDeviceId(resolvedDeviceId);
           }
+          setIncidentOffset(famData?.incidentOffset || 0);
           setLoadingContext(false);
         });
         return () => unsubFam();
@@ -108,7 +127,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
     });
     
     return () => unsubUser();
-  }, [user]);
+  }, [user, impersonatedFamilyId]);
   
   useEffect(() => {
     if (!deviceId) return;
@@ -340,6 +359,18 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
           status: 'pending',
           timestamp: new Date().toISOString()
         });
+        // Also push to admin review queue
+        const queueRef = push(ref(db, 'admin/registrationQueue'));
+        await set(queueRef, {
+          familyId: familyId,
+          caregiverUid: user.uid,
+          caregiverName: user.displayName || user.email?.split('@')[0] || 'Unknown',
+          caregiverEmail: user.email,
+          deviceSerialNumber: trimmedSerial,
+          monitoredPersonName: '(Joining existing family)',
+          createdAt: new Date().toISOString(),
+          status: 'pending_review',
+        });
         
         setLinkSuccess('A request to join this family has been sent to the existing caregivers.');
         await set(ref(db, `users/${user.uid}/accessStatus`), 'pending');
@@ -362,6 +393,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       
       await set(newFamilyRef, {
         monitoredPerson: { name: linkPatient.trim() },
+        deviceId: trimmedSerial,
         deviceSerialNumber: trimmedSerial,
         caregivers: {
           [user.uid]: {
@@ -378,6 +410,19 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
       await set(ref(db, `devices/${trimmedSerial}/familyId`), newFamilyId);
       await set(ref(db, `users/${user.uid}/familyId`), newFamilyId);
       await set(ref(db, `users/${user.uid}/accessStatus`), 'active');
+
+      // Push to admin registration review queue
+      const queueRef = push(ref(db, 'admin/registrationQueue'));
+      await set(queueRef, {
+        familyId: newFamilyId,
+        caregiverUid: user.uid,
+        caregiverName: user.displayName || user.email?.split('@')[0] || 'Unknown',
+        caregiverEmail: user.email,
+        deviceSerialNumber: trimmedSerial,
+        monitoredPersonName: linkPatient.trim(),
+        createdAt: now,
+        status: 'pending_review',
+      });
       
       // The dashboard will automatically reload and fetch the new deviceId
     } catch (err: any) {
@@ -534,32 +579,44 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
               <span className="text-sm font-medium capitalize text-foreground">{deviceData.status}</span>
             </div>
             
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <div className="flex items-center justify-center size-10 rounded-full bg-secondary text-primary font-medium cursor-pointer hover:bg-secondary/80 transition-colors">
-                  {user.displayName?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U'}
-                </div>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => setActiveTab('settings')}
-                  className="cursor-pointer"
-                >
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={handleLogoutClick}
-                  className="text-destructive focus:text-destructive cursor-pointer"
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign Out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className={`flex items-center justify-center size-10 rounded-full font-medium cursor-pointer transition-colors ${impersonatedFamilyId ? 'bg-warning/20 text-warning hover:bg-warning/30' : 'bg-secondary text-primary hover:bg-secondary/80'}`}>
+                    {impersonatedFamilyId ? 'ADMIN' : (user.displayName?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U')}
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  {impersonatedFamilyId ? (
+                    <>
+                      <DropdownMenuLabel className="text-warning">Impersonation Mode</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                        Settings and sign-out are disabled while viewing as a family.
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => setActiveTab('settings')}
+                        className="cursor-pointer"
+                      >
+                        <Settings className="mr-2 h-4 w-4" />
+                        <span>Settings</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={handleLogoutClick}
+                        className="text-destructive focus:text-destructive cursor-pointer"
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Sign Out</span>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
           </div>
         </div>
       </header>
@@ -728,8 +785,8 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
                       <Bell className="size-5 text-destructive" />
                     </div>
                   </div>
-                  <p className="text-muted-foreground text-sm mb-1">Incidents</p>
-                  <p className="text-2xl font-semibold text-foreground">{incidentsCount}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mt-1">Total Falls</p>
+                  <p className="text-2xl font-bold text-foreground mt-0.5">{Math.max(0, incidentsCount + incidentOffset)}</p>
                 </div>
                 
                 <div className="bg-card border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">

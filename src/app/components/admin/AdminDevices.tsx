@@ -44,9 +44,12 @@ export function AdminDevices() {
         const d = currentDevices[deviceId];
         
         // Find which family this belongs to
-        const familyEntry = Object.entries(currentFamilies).find(([_, f]: [string, any]) => f.deviceId === deviceId);
+        const familyEntry = Object.entries(currentFamilies).find(([_, f]: [string, any]) => 
+          (f.deviceId || f.deviceSerialNumber) === deviceId
+        );
         const familyId = familyEntry ? familyEntry[0] : null;
-        const patientName = familyEntry ? (familyEntry[1] as any).patientName : null;
+        const fData = familyEntry ? familyEntry[1] as any : null;
+        const patientName = fData ? (fData.patientName || fData.monitoredPerson?.name) : null;
         
         let status: "online" | "offline" | "low_battery" = "offline";
         

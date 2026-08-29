@@ -6,10 +6,12 @@ import { SkeletonList } from './ui/skeleton';
 
 interface JoinRequest {
   id: string;
-  userId: string;
+  uid?: string;
+  userId?: string;
   name: string;
-  email: string;
-  timestamp: string;
+  email?: string;
+  timestamp?: string;
+  createdAt?: string;
   status: 'pending' | 'approved' | 'denied';
 }
 
@@ -52,7 +54,9 @@ export function JoinRequests({ familyId }: JoinRequestsProps) {
       await update(requestRef, { status: 'approved' });
 
       // 2. Grant user access
-      const userRef = ref(db, `users/${request.userId}`);
+      const targetUid = request.uid || request.userId;
+      if (!targetUid) throw new Error("No UID found in request");
+      const userRef = ref(db, `users/${targetUid}`);
       await update(userRef, { accessStatus: 'active' });
     } catch (err) {
       console.error("Failed to approve request", err);
@@ -114,8 +118,8 @@ export function JoinRequests({ familyId }: JoinRequestsProps) {
                   </div>
                   <div>
                     <h4 className="text-base font-medium text-foreground">{request.name}</h4>
-                    <p className="text-sm text-muted-foreground mb-1">{request.email}</p>
-                    <p className="text-xs text-muted-foreground">Requested: {new Date(request.timestamp).toLocaleString()}</p>
+                    {request.email && <p className="text-sm text-muted-foreground mb-1">{request.email}</p>}
+                    <p className="text-xs text-muted-foreground">Requested: {new Date(request.createdAt || request.timestamp || '').toLocaleString()}</p>
                   </div>
                 </div>
                 

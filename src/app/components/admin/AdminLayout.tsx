@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { cn } from "../ui/utils";
 import { Menu, X, LogOut, ArrowLeft, Settings } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "../../../lib/firebase";
+import { db, ref, onValue } from "../../../lib/db";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,12 +17,12 @@ import {
 const navigation = [
   { name: "Dashboard", href: "/admin", section: "Overview" },
   { name: "Analytics", href: "/admin/analytics", section: "Overview" },
-  { name: "Families", href: "/admin/families", section: "People", count: 248 },
+  { name: "Families", href: "/admin/families", section: "People" },
   { name: "Review Queue", href: "/admin/review", section: "People" },
   { name: "Devices", href: "/admin/devices", section: "Monitoring" },
-  { name: "Incidents", href: "/admin/incidents", section: "Monitoring", alert: 6 },
+  { name: "Incidents", href: "/admin/incidents", section: "Monitoring" },
   { name: "Alert delivery", href: "/admin/alert-delivery", section: "Monitoring" },
-  { name: "Tickets", href: "/admin/tickets", section: "Support", count: 14 },
+  { name: "Tickets", href: "/admin/tickets", section: "Support" },
 ];
 
 
@@ -42,11 +43,67 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     await signOut(auth);
   };
 
-  const groupedNav = navigation.reduce((acc, item) => {
+  const [familyCount, setFamilyCount] = useState<number | undefined>(undefined);
+  const [incidentAlertCount, setIncidentAlertCount] = useState<number | undefined>(undefined);
+  const [ticketCount, setTicketCount] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    const familiesRef = ref(db, 'families');
+    const eventsRef = ref(db, 'events');
+    const ticketsRef = ref(db, 'admin/tickets');
+
+    const unsubFamilies = onValue(familiesRef, (snapshot) => {
+      const data = snapshot.val();
+      setFamilyCount(data ? Object.keys(data).length : 0);
+    });
+
+    const unsubEvents = onValue(eventsRef, (snapshot) => {
+      const data = snapshot.val();
+      let count = 0;
+      if (data) {
+        Object.values(data).forEach((deviceEvents: any) => {
+          Object.values(deviceEvents).forEach((ev: any) => {
+            if (ev.status === 'pending' || ev.status === 'unconfirmed' || ev.status === 'emergency') {
+              count++;
+            }
+          });
+        });
+      }
+      setIncidentAlertCount(count > 0 ? count : undefined);
+    });
+
+    const unsubTickets = onValue(ticketsRef, (snapshot) => {
+      const data = snapshot.val();
+      let count = 0;
+      if (data) {
+        Object.values(data).forEach((ticket: any) => {
+          if (ticket.status === 'open' || ticket.status === 'in_progress') {
+            count++;
+          }
+        });
+      }
+      setTicketCount(count > 0 ? count : undefined);
+    });
+
+    return () => {
+      unsubFamilies();
+      unsubEvents();
+      unsubTickets();
+    };
+  }, []);
+
+  const dynamicNavigation = navigation.map(item => {
+    if (item.name === 'Families') return { ...item, count: familyCount };
+    if (item.name === 'Incidents') return { ...item, alert: incidentAlertCount };
+    if (item.name === 'Tickets') return { ...item, count: ticketCount };
+    return item;
+  });
+
+  const groupedNav = dynamicNavigation.reduce((acc, item) => {
     if (!acc[item.section]) acc[item.section] = [];
     acc[item.section].push(item);
     return acc;
-  }, {} as Record<string, typeof navigation>);
+  }, {} as Record<string, any>);
 
   const sidebarContent = (
     <>

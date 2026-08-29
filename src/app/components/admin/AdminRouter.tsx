@@ -8,6 +8,7 @@ import { AdminAlertDelivery } from './AdminAlertDelivery';
 import { AdminTickets } from './AdminTickets';
 import { AdminSettings } from './AdminSettings';
 import { AdminAnalytics } from './AdminAnalytics';
+import { AdminImpersonate } from './AdminImpersonate';
 
 export function AdminRouter() {
   return (
@@ -21,6 +22,7 @@ export function AdminRouter() {
       <Route path="/tickets" element={<AdminTickets />} />
       <Route path="/settings" element={<AdminSettings />} />
       <Route path="/analytics" element={<AdminAnalytics />} />
+      <Route path="/family/:id" element={<AdminImpersonate />} />
       {/* Fallback for unbuilt pages */}
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>

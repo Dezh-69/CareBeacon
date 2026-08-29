@@ -159,6 +159,20 @@ export function Login({ onSignUpComplete }: LoginProps) {
         const userStatusRef = ref(db, `users/${uid}/accessStatus`);
         await set(userStatusRef, 'pending');
 
+        // Push to admin registration review queue
+        const queueRef = ref(db, 'admin/registrationQueue');
+        const newQueueRef = push(queueRef);
+        await set(newQueueRef, {
+          familyId: deviceData.familyId,
+          caregiverUid: uid,
+          caregiverName: name,
+          caregiverEmail: email,
+          deviceSerialNumber: trimmedSerial,
+          monitoredPersonName: '(Joining existing family)',
+          createdAt: now,
+          status: 'pending_review',
+        });
+
         // Send free email notification to existing caregivers
         sendJoinRequestEmail(name, trimmedSerial);
 
@@ -174,6 +188,7 @@ export function Login({ onSignUpComplete }: LoginProps) {
           monitoredPerson: {
             name: monitoredPersonName.trim(),
           },
+          deviceId: trimmedSerial,
           deviceSerialNumber: trimmedSerial,
           caregivers: {
             [uid]: {

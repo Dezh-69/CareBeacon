@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { AdminLayout } from "./AdminLayout";
 import { db, ref, onValue, update } from "../../../lib/db";
+import { auth } from "../../../lib/firebase";
 import { SkeletonTable } from "../ui/skeleton";
 import { Search, Filter, HelpCircle, MessageSquare } from "lucide-react";
 
@@ -19,11 +20,15 @@ export function AdminTickets() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [families, setFamilies] = useState<any>({});
 
   useEffect(() => {
     const ticketsRef = ref(db, 'admin/tickets');
+    const familiesRef = ref(db, 'families');
     
-    const unsubscribe = onValue(ticketsRef, (snapshot) => {
+    let currentTickets: any = {};
+    
+    const unsubTickets = onValue(ticketsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const parsedTickets = Object.keys(data).map(key => ({
@@ -37,7 +42,16 @@ export function AdminTickets() {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    const unsubFamilies = onValue(familiesRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setFamilies(snapshot.val());
+      }
+    });
+
+    return () => {
+      unsubTickets();
+      unsubFamilies();
+    };
   }, []);
 
   const handleStatusChange = async (ticketId: string, newStatus: string) => {
@@ -48,6 +62,17 @@ export function AdminTickets() {
       });
     } catch (error) {
       console.error("Error updating ticket status", error);
+    }
+  };
+
+  const handleAssign = async (ticketId: string, assignee: string) => {
+    try {
+      await update(ref(db, `admin/tickets/${ticketId}`), {
+        assignedTo: assignee,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error assigning ticket", error);
     }
   };
 
@@ -122,7 +147,7 @@ export function AdminTickets() {
               <thead className="bg-muted/50 text-muted-foreground">
                 <tr>
                   <th className="px-6 py-4 font-medium">Ticket Details</th>
-                  <th className="px-6 py-4 font-medium">Family ID</th>
+                  <th className="px-6 py-4 font-medium">Family / Patient</th>
                   <th className="px-6 py-4 font-medium">Date</th>
                   <th className="px-6 py-4 font-medium">Assigned To</th>
                   <th className="px-6 py-4 font-medium text-right">Status</th>
@@ -152,14 +177,40 @@ export function AdminTickets() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 font-mono text-xs text-muted-foreground">
-                        {ticket.familyId}
+                      <td className="px-6 py-4">
+                        {families[ticket.familyId] && (
+                          <div className="font-medium text-foreground">
+                            {families[ticket.familyId].patientName || families[ticket.familyId].monitoredPerson?.name || "Unknown"}
+                          </div>
+                        )}
+                        <div className="font-mono text-xs text-muted-foreground mt-0.5">
+                          {ticket.familyId}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-muted-foreground">
                         {new Date(ticket.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 text-foreground">
-                        {ticket.assignedTo || <span className="text-muted-foreground italic">Unassigned</span>}
+                        {ticket.assignedTo ? (
+                          <div className="flex flex-col items-start gap-1.5">
+                            <span className="text-sm">{ticket.assignedTo}</span>
+                            {auth.currentUser?.email === ticket.assignedTo && (
+                              <button 
+                                onClick={() => handleAssign(ticket.id, "")}
+                                className="text-xs text-destructive hover:underline"
+                              >
+                                Unassign
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={() => handleAssign(ticket.id, auth.currentUser?.email || "Admin")}
+                            className="text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 px-2 py-1 rounded-md transition-colors"
+                          >
+                            Assign to me
+                          </button>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <select 
