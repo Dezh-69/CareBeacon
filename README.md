@@ -1,13 +1,29 @@
 # CareBeacon — Fall Detection & Caregiver Dashboard
 
-CareBeacon is a real-time fall detection monitoring system that connects an ESP32-based wearable device to a web dashboard. Caregivers can monitor their loved one's location, device status, fall history, and receive instant push notification alerts.
+## About the Project
+CareBeacon is a real-time fall detection monitoring system that connects an ESP32-based wearable device to a web dashboard. It acts as a safety net for elderly patients by tracking their status and instantly alerting their families or medical staff in the event of a fall.
+
+### What the System Does
+- Provides real-time fall detection and instant push notification alerts.
+- Tracks the live GPS location of the wearer on an interactive map.
+- Monitors device health (battery level, connection status).
+- Logs a chronological history of fall events and device interactions.
+- Enables multi-caregiver scheduling, emergency contact management, and direct GSM audio calls to the patient.
+
+### Who Uses It
+- **Elderly Individuals / Patients:** Wear the ESP32-based hardware device for continuous safety monitoring.
+- **Caregivers & Family Members:** Use the web dashboard to monitor their loved one's location, coordinate care schedules, and receive emergency alerts.
+- **System Administrators:** Manage devices, families, and monitor overall system health via an admin panel.
+
+### My Role
+- **Full Stack Developer**: Developed the React/TypeScript frontend dashboard, integrated Firebase for real-time data sync, authentication, and push notifications, and implemented the hardware-to-cloud communication specification for the ESP32 wearable.
 
 ---
 
 ## Table of Contents
 
 - [Features](#features)
-- [Tech Stack](#tech-stack)
+- [Tools and Languages Used](#tools-and-languages-used)
 - [Prerequisites](#prerequisites)
 - [Getting Started](#getting-started)
 - [Firebase Setup (Connect Your Own Account)](#firebase-setup-connect-your-own-account)
@@ -46,11 +62,12 @@ CareBeacon is a real-time fall detection monitoring system that connects an ESP3
 
 ---
 
-## Tech Stack
+## Tools and Languages Used
 
-| Layer       | Technology                                         |
+| Category    | Technology                                         |
 |-------------|----------------------------------------------------|
-| Frontend    | React 18, TypeScript, Vite                         |
+| Languages   | TypeScript, HTML, CSS, JavaScript                  |
+| Frontend    | React 18, Vite                                     |
 | Styling     | Tailwind CSS 4, shadcn/ui (Radix primitives)       |
 | Backend     | Firebase (Authentication, Realtime Database, FCM)  |
 | Maps        | Leaflet / React-Leaflet                            |
