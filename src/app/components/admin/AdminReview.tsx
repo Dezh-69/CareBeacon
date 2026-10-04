@@ -50,29 +50,34 @@ export function AdminReview() {
     if (!confirm(`Are you sure you want to mark this registration as ${action}?`)) return;
 
     try {
-      // 1. Update the queue status
-      await update(ref(db, `admin/registrationQueue/${request.id}`), {
-        status: action
-      });
-
+      console.log(`Processing ${action} for request:`, request);
+      
+      // We will perform an atomic multi-path update at the root level
+      const updates: any = {};
+      
+      // 1. Always update the queue status
+      updates[`admin/registrationQueue/${request.id}/status`] = action;
+      
       if (action === 'approved') {
-        // Grant access and add to caregivers
-        await update(ref(db, `users/${request.caregiverUid}`), { accessStatus: 'active' });
-        await update(ref(db, `families/${request.familyId}/caregivers/${request.caregiverUid}`), {
+        // 2. Grant access and add to caregivers
+        updates[`users/${request.caregiverUid}/accessStatus`] = 'active';
+        updates[`families/${request.familyId}/caregivers/${request.caregiverUid}`] = {
           name: request.caregiverName,
           email: request.caregiverEmail,
           role: 'caregiver',
           joinedAt: new Date().toISOString()
-        });
+        };
+      } else if (action === 'rejected') {
+        // 2. Suspend the family and user so they can't log in
+        updates[`families/${request.familyId}/status`] = 'suspended';
+        updates[`users/${request.caregiverUid}/accessStatus`] = 'suspended';
       }
 
-      // 2. If rejected, suspend the family and user so they can't log in
-      if (action === 'rejected') {
-        await update(ref(db, `families/${request.familyId}`), { status: 'suspended' });
-        await update(ref(db, `users/${request.caregiverUid}`), { accessStatus: 'suspended' });
-      }
+      // Perform atomic update
+      await update(ref(db), updates);
+      console.log('Atomic update successful:', updates);
 
-      // 3. Log the action
+      // 3. Log the action separately (since it uses a push key, it's easier to do this after)
       const user = auth.currentUser;
       if (user) {
         const logRef = push(ref(db, 'admin/auditLog'));
@@ -87,7 +92,7 @@ export function AdminReview() {
       }
     } catch (err) {
       console.error('Failed to process review:', err);
-      alert('Failed to process action. Check console for details.');
+      alert('Failed to process action due to permissions or database error. Check console for details.');
     }
   };
 
