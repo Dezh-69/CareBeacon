@@ -119,11 +119,17 @@ export function Dashboard({ user, impersonatedFamilyId, onLogout }: DashboardPro
           }
           setIncidentOffset(famData?.incidentOffset || 0);
           setLoadingContext(false);
+        }, (error) => {
+          console.error("Error fetching family:", error);
+          setLoadingContext(false);
         });
         return () => unsubFam();
       } else {
         setLoadingContext(false);
       }
+    }, (error) => {
+      console.error("Error fetching user data:", error);
+      setLoadingContext(false);
     });
     
     return () => unsubUser();

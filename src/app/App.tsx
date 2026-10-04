@@ -49,6 +49,9 @@ export default function App() {
         // Default to caregiver if no role is set
         setUserRole('caregiver');
       }
+    }, (error: any) => {
+      console.error("Error fetching user role:", error);
+      setUserRole('caregiver');
     });
 
     // Fetch Access Status
@@ -61,6 +64,10 @@ export default function App() {
         // No status record — default to active
         setAccessStatus('active');
       }
+      setLoading(false);
+    }, (error: any) => {
+      console.error("Error fetching access status:", error);
+      setAccessStatus('active'); // fallback
       setLoading(false);
     });
 
