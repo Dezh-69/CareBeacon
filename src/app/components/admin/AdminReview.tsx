@@ -55,6 +55,17 @@ export function AdminReview() {
         status: action
       });
 
+      if (action === 'approved') {
+        // Grant access and add to caregivers
+        await update(ref(db, `users/${request.caregiverUid}`), { accessStatus: 'active' });
+        await update(ref(db, `families/${request.familyId}/caregivers/${request.caregiverUid}`), {
+          name: request.caregiverName,
+          email: request.caregiverEmail,
+          role: 'caregiver',
+          joinedAt: new Date().toISOString()
+        });
+      }
+
       // 2. If rejected, suspend the family and user so they can't log in
       if (action === 'rejected') {
         await update(ref(db, `families/${request.familyId}`), { status: 'suspended' });
