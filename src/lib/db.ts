@@ -16,11 +16,17 @@ export const ref = (database: any, path: string) => {
   return fbRef(database, path);
 };
 
-export const onValue = (reference: any, callback: (snapshot: any) => void) => {
+export const onValue = (reference: any, callback: (snapshot: any) => void, errorCallback?: (error: Error) => void) => {
+  if (errorCallback) {
+    return fbOnValue(reference, callback, errorCallback);
+  }
   return fbOnValue(reference, callback);
 };
 
-export const onChildAdded = (reference: any, callback: (snapshot: any) => void) => {
+export const onChildAdded = (reference: any, callback: (snapshot: any) => void, errorCallback?: (error: Error) => void) => {
+  if (errorCallback) {
+    return fbOnChildAdded(reference, callback, errorCallback);
+  }
   return fbOnChildAdded(reference, callback);
 };
 
