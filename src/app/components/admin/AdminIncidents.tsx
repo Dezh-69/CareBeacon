@@ -109,9 +109,9 @@ export function AdminIncidents() {
   }, []);
 
   const filteredIncidents = incidents.filter(i => {
-    const matchesSearch = i.patientName.toLowerCase().includes(search.toLowerCase()) || 
-                          i.deviceId.toLowerCase().includes(search.toLowerCase()) ||
-                          i.type.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = (i.patientName || '').toLowerCase().includes(search.toLowerCase()) || 
+                          (i.deviceId || '').toLowerCase().includes(search.toLowerCase()) ||
+                          (i.type || '').toLowerCase().includes(search.toLowerCase());
     const matchesStatus = filterStatus === "all" || i.status === filterStatus;
     return matchesSearch && matchesStatus;
   });

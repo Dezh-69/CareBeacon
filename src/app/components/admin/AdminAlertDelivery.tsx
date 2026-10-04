@@ -93,8 +93,8 @@ export function AdminAlertDelivery() {
   }, []);
 
   const filteredDeliveries = deliveries.filter(d => {
-    const matchesSearch = d.patientName.toLowerCase().includes(search.toLowerCase()) || 
-                          d.contactName.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = (d.patientName || '').toLowerCase().includes(search.toLowerCase()) || 
+                          (d.contactName || '').toLowerCase().includes(search.toLowerCase());
     const matchesStatus = filterStatus === "all" || d.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
