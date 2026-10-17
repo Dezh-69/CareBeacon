@@ -8,6 +8,27 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider,
 } from 'firebase/auth';
+import { useConfirm } from './ui/confirm-dialog';
+import { normalizePhone } from '../../lib/phone';
+
+// "+63" is fixed; the user types the 10 digits after it (9XX XXX XXXX).
+const PHONE_ERROR = 'Enter the 10 digits after +63, starting with 9 (e.g., +63 912 345 6789).';
+
+/** keeps only the digits after +63, max 10 (also accepts a pasted 09... or +63... number) */
+function phoneDigitsAfter63(value: string): string {
+  let d = value.replace(/\D/g, '');
+  if (d.startsWith('63')) d = d.slice(2);
+  if (d.startsWith('0')) d = d.slice(1);
+  return d.slice(0, 10);
+}
+
+/** "09123456789" -> "+63 912 345 6789" */
+function displayPhone(phone: string): string {
+  const n = normalizePhone(phone);
+  if (!n) return phone || '—';
+  const d = n.slice(1);
+  return `+63 ${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
+}
 
 export function UserSettings() {
   // Email
@@ -29,6 +50,7 @@ export function UserSettings() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
   // Field-level inline validation errors
   const [inlineEmailError, setInlineEmailError] = useState('');
@@ -50,6 +72,8 @@ export function UserSettings() {
   const [deleteAccountMsg, setDeleteAccountMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [familyId, setFamilyId] = useState<string | null>(null);
+  const [currentPhone, setCurrentPhone] = useState<string>('');
+  const [confirm, confirmDialog] = useConfirm();
 
   const user = auth.currentUser;
 
@@ -59,6 +83,7 @@ export function UserSettings() {
       const unsub = onValue(userRef, (snapshot) => {
         if (snapshot.exists()) {
           setFamilyId(snapshot.val().familyId || null);
+          setCurrentPhone(snapshot.val().phone || '');
         }
       });
       return () => unsub();
@@ -80,6 +105,24 @@ export function UserSettings() {
       }
       return;
     }
+
+    const ok = await confirm(
+      isDeletionRequest
+        ? {
+            title: 'Send deletion request?',
+            message: 'The administrator will be asked to remove your caregiver account from this family. You will lose access to the dashboard once it is approved.',
+            confirmLabel: 'Send Request',
+            tone: 'danger',
+            icon: null,
+          }
+        : {
+            title: 'Submit this ticket?',
+            message: <>Subject: <strong className="text-foreground">{subject}</strong><br />The administrator will see your message and email address.</>,
+            confirmLabel: 'Submit Ticket',
+            icon: null,
+          }
+    );
+    if (!ok) return;
 
     if (isDeletionRequest) setDeleteAccountLoading(true);
     else setTicketLoading(true);
@@ -126,6 +169,14 @@ export function UserSettings() {
       return;
     }
 
+    const ok = await confirm({
+      title: 'Change your email?',
+      message: <>A verification link will be sent to <strong className="text-foreground">{newEmail.trim()}</strong>. Your login email changes only after you open that link.</>,
+      confirmLabel: 'Send Link',
+      icon: null,
+    });
+    if (!ok) return;
+
     setEmailLoading(true);
     setEmailMsg(null);
     try {
@@ -148,16 +199,25 @@ export function UserSettings() {
     e.preventDefault();
     if (!user || !newPhone.trim()) return;
 
-    const phoneRegex = /^09\d{9}$/;
-    if (!phoneRegex.test(newPhone.trim())) {
-      setPhoneMsg({ type: 'error', text: 'Phone number must contain exactly 11 digits and start with 09 (e.g., 09123456789).' });
+    if (!/^9\d{9}$/.test(newPhone)) {
+      setPhoneMsg({ type: 'error', text: PHONE_ERROR });
       return;
     }
+    // saved as 09XXXXXXXXX, the same format used at sign-up
+    const phoneToSave = '0' + newPhone;
+
+    const ok = await confirm({
+      title: 'Change your phone number?',
+      message: <>{currentPhone ? <>From <strong className="text-foreground">{displayPhone(currentPhone)}</strong> to </> : <>New number: </>}<strong className="text-foreground">{displayPhone(phoneToSave)}</strong></>,
+      confirmLabel: 'Update Number',
+      icon: null,
+    });
+    if (!ok) return;
 
     setPhoneLoading(true);
     setPhoneMsg(null);
     try {
-      await update(ref(db, `users/${user.uid}`), { phone: newPhone.trim() });
+      await update(ref(db, `users/${user.uid}`), { phone: phoneToSave });
       setPhoneMsg({ type: 'success', text: 'Phone number updated successfully.' });
       setNewPhone('');
     } catch (err: any) {
@@ -257,6 +317,10 @@ export function UserSettings() {
             <p className="text-xs text-muted-foreground mb-1">Display Name</p>
             <p className="text-sm font-medium text-foreground">{user?.displayName || user?.email?.split('@')[0] || '—'}</p>
           </div>
+          <div className="p-4 bg-muted border border-border rounded-xl">
+            <p className="text-xs text-muted-foreground mb-1">Phone Number</p>
+            <p className="text-sm font-medium text-foreground">{currentPhone ? displayPhone(currentPhone) : '—'}</p>
+          </div>
         </div>
       </div>
 
@@ -322,22 +386,25 @@ export function UserSettings() {
         <div className="mt-4 space-y-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">New Phone Number</label>
-            <input
-              type="tel"
-              value={newPhone}
-              onChange={(e) => {
-                setNewPhone(e.target.value);
-                const val = e.target.value;
-                if (val.trim() && !/^09\d{9}$/.test(val.trim())) {
-                  setInlinePhoneError('Phone number must contain exactly 11 digits and start with 09.');
-                } else {
-                  setInlinePhoneError('');
-                }
-              }}
-              placeholder="09123456789"
-              className="w-full px-4 py-2.5 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition text-sm"
-              required
-            />
+            <div className="flex items-stretch w-full bg-input-background border border-border rounded-xl focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition overflow-hidden">
+              <span className="flex items-center px-3 text-sm font-medium text-foreground bg-muted border-r border-border select-none">
+                +63
+              </span>
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={newPhone}
+                onChange={(e) => {
+                  const digits = phoneDigitsAfter63(e.target.value);
+                  setNewPhone(digits);
+                  setInlinePhoneError(digits && !/^9\d{9}$/.test(digits) ? PHONE_ERROR : '');
+                }}
+                placeholder="9123456789"
+                aria-label="New phone number, digits after +63"
+                className="flex-1 min-w-0 px-3 py-2.5 bg-transparent text-foreground placeholder-muted-foreground focus:outline-none text-sm tracking-wide"
+                required
+              />
+            </div>
             {inlinePhoneError && <p className="text-xs text-destructive mt-1">{inlinePhoneError}</p>}
           </div>
           <button
@@ -416,8 +483,9 @@ export function UserSettings() {
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Confirm New Password</label>
+            <div className="relative">
             <input
-              type="password"
+              type={showConfirmNewPassword ? 'text' : 'password'}
               value={confirmPassword}
               onChange={(e) => {
                 setConfirmPassword(e.target.value);
@@ -428,9 +496,18 @@ export function UserSettings() {
                 }
               }}
               placeholder="Confirm new password"
-              className="w-full px-4 py-2.5 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition text-sm"
+              className="w-full px-4 py-2.5 pr-10 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition text-sm"
               required
             />
+            <button
+              type="button"
+              onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+              aria-label={showConfirmNewPassword ? 'Hide password' : 'Show password'}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showConfirmNewPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+            </div>
             {inlineConfirmError && <p className="text-xs text-destructive mt-1">{inlineConfirmError}</p>}
           </div>
           <button
@@ -489,9 +566,6 @@ export function UserSettings() {
       {showPasswordConfirm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-2xl p-6 shadow-xl max-w-sm w-full mx-4">
-            <div className="flex items-center justify-center size-12 bg-primary/10 rounded-xl mx-auto mb-4">
-              <Lock className="size-6 text-primary" />
-            </div>
             <h3 className="text-lg font-semibold text-foreground text-center mb-2">Change Password</h3>
             <p className="text-sm text-muted-foreground text-center mb-6">
               Are you sure you want to change your password?
@@ -521,12 +595,7 @@ export function UserSettings() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between p-5 border-b border-border bg-muted/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                  <Ticket className="size-5" />
-                </div>
-                <h3 className="font-semibold text-foreground">Submit a Ticket</h3>
-              </div>
+              <h3 className="font-semibold text-foreground">Submit a Ticket</h3>
               <button onClick={() => setShowSupportModal(false)} className="text-muted-foreground hover:text-foreground">
                 <X className="size-5" />
               </button>
@@ -587,9 +656,6 @@ export function UserSettings() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="flex flex-col items-center text-center p-6 pb-8">
-              <div className="size-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
-                <AlertTriangle className="size-6 text-destructive" />
-              </div>
               <h3 className="text-lg font-semibold text-foreground mb-2">Request Account Removal</h3>
               <p className="text-sm text-muted-foreground mb-1">
                 This will submit a request to remove <strong className="text-foreground">your caregiver account</strong> from the family.
@@ -636,6 +702,8 @@ export function UserSettings() {
           </div>
         </div>
       )}
+
+      {confirmDialog}
     </div>
   );
 }

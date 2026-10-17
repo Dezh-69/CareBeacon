@@ -1,15 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AdminLayout } from "./AdminLayout";
 import { StatusBadge } from "./StatusBadge";
 import { db, ref, onValue, set } from "../../../lib/db";
 import { SkeletonTable } from "../ui/skeleton";
-import { Search, Filter, Battery, Wifi, WifiOff, X, Activity, HardDrive, Cpu, Radio, Plus, PackagePlus, Check, AlertCircle } from "lucide-react";
+import { familyDeviceId, personName, batteryLevels, deviceState, flattenEvents } from "./adminData";
+import { validDate } from "../../../lib/time";
+import { Search, Filter, CalendarDays, Battery, X, Activity, Cpu, Radio, Check, AlertCircle } from "lucide-react";
+import { useConfirm } from "../ui/confirm-dialog";
+import { useNow } from "../../../lib/deviceStatus";
 
 interface Device {
   id: string;
   status: "online" | "offline" | "low_battery";
-  battery: number;
-  lastUpdate: string;
+  wearableBattery: number;
+  hubBattery: number;
+  lastUpdate: Date | null;
   familyId: string | null;
   patientName: string | null;
 }
@@ -19,128 +24,169 @@ export function AdminDevices() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterDays, setFilterDays] = useState("all");
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+  const [confirm, confirmDialog] = useConfirm();
+  const now = useNow(5000);
+  const nowRef = useRef(now);
+  nowRef.current = now;
+  const recomputeRef = useRef<(() => void) | null>(null);
+  // re-evaluate online/offline every few seconds WITHOUT re-subscribing to Firebase (re-subscribing made the page flicker)
+  useEffect(() => { recomputeRef.current?.(); }, [now]);
 
   // Provision modal state
   const [showProvisionModal, setShowProvisionModal] = useState(false);
-  const [provisionSerial, setProvisionSerial] = useState("");
-  const [provisionLabel, setProvisionLabel] = useState("");
-  const [provisionNotes, setProvisionNotes] = useState("");
+  const [provisionMac, setProvisionMac] = useState("");
   const [provisionLoading, setProvisionLoading] = useState(false);
   const [provisionError, setProvisionError] = useState("");
   const [provisionSuccess, setProvisionSuccess] = useState(false);
 
   useEffect(() => {
-    const devicesRef = ref(db, 'devices');
-    const familiesRef = ref(db, 'families');
-    
     let currentDevices: any = {};
     let currentFamilies: any = {};
-    
+    let currentEvents: any = {};
+    const loaded = { devices: false, families: false };
+
     const updateDevicesList = () => {
+      // Latest event per device (real time from the Firebase key)
+      const lastEvent: Record<string, number> = {};
+      flattenEvents(currentEvents).forEach(ev => {
+        const t = ev.date.getTime();
+        if (!lastEvent[ev.deviceId] || t > lastEvent[ev.deviceId]) lastEvent[ev.deviceId] = t;
+      });
+
+      // Every device in /devices plus any device linked to a family but not yet in /devices
+      const ids = new Set<string>(Object.keys(currentDevices));
+      Object.values(currentFamilies).forEach((f: any) => {
+        const id = familyDeviceId(f);
+        if (id) ids.add(id);
+      });
+
       const parsedDevices: Device[] = [];
-      
-      Object.keys(currentDevices).forEach(deviceId => {
-        const d = currentDevices[deviceId];
-        
-        // Find which family this belongs to
-        const familyEntry = Object.entries(currentFamilies).find(([_, f]: [string, any]) => 
-          (f.deviceId || f.deviceSerialNumber) === deviceId
-        );
+      ids.forEach(deviceId => {
+        const d = currentDevices[deviceId] || {};
+
+        const familyEntry = Object.entries(currentFamilies).find(([, f]: [string, any]) => familyDeviceId(f) === deviceId);
         const familyId = familyEntry ? familyEntry[0] : null;
-        const fData = familyEntry ? familyEntry[1] as any : null;
-        const patientName = fData ? (fData.patientName || fData.monitoredPerson?.name) : null;
-        
-        let status: "online" | "offline" | "low_battery" = "offline";
-        
-        if (d.status === 'offline') {
-          status = 'offline';
-        } else if (d.battery < 20) {
-          status = 'low_battery';
-        } else {
-          status = 'online';
-        }
-        
+        const fData = familyEntry ? (familyEntry[1] as any) : null;
+        const name = fData ? personName(fData, d) : (d.user?.name || null);
+
+        const levels = batteryLevels(d);
+
+        // Last sync: device's lastUpdate if it is a real date, otherwise its latest event
+        const reported = validDate(d.lastUpdate)?.getTime() ?? 0;
+        const latest = Math.max(reported, lastEvent[deviceId] ?? 0);
+
         parsedDevices.push({
           id: deviceId,
-          status,
-          battery: Math.round(d.battery || 0),
-          lastUpdate: d.lastUpdate || new Date().toISOString(),
+          status: deviceState(d, nowRef.current),
+          wearableBattery: Math.round(levels.wearable),
+          hubBattery: Math.round(levels.hub),
+          lastUpdate: latest ? new Date(latest) : null,
           familyId,
-          patientName
+          patientName: name === "Unknown" ? null : name,
         });
       });
-      
+
+      // Assigned devices first, then by serial
+      parsedDevices.sort((a, b) => Number(!!b.familyId) - Number(!!a.familyId) || a.id.localeCompare(b.id));
+
       setDevices(parsedDevices);
-      setLoading(false);
+      // keep the open Diagnostics window in sync too
+      setSelectedDevice(prev => prev ? (parsedDevices.find(x => x.id === prev.id) ?? prev) : prev);
+      if (loaded.devices && loaded.families) setLoading(false);
     };
 
-    const unsubDevices = onValue(devicesRef, (snapshot) => {
-      if (snapshot.exists()) currentDevices = snapshot.val();
-      updateDevicesList();
+    recomputeRef.current = updateDevicesList;
+    const unsubDevices = onValue(ref(db, 'devices'), (snapshot) => {
+      currentDevices = snapshot.val() || {}; loaded.devices = true; updateDevicesList();
     });
-
-    const unsubFamilies = onValue(familiesRef, (snapshot) => {
-      if (snapshot.exists()) currentFamilies = snapshot.val();
-      updateDevicesList();
+    const unsubFamilies = onValue(ref(db, 'families'), (snapshot) => {
+      currentFamilies = snapshot.val() || {}; loaded.families = true; updateDevicesList();
+    });
+    const unsubEvents = onValue(ref(db, 'events'), (snapshot) => {
+      currentEvents = snapshot.val() || {}; updateDevicesList();
     });
 
     return () => {
       unsubDevices();
       unsubFamilies();
+      unsubEvents();
     };
   }, []);
 
+  const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, "");
   const filteredDevices = devices.filter(d => {
-    const matchesSearch = d.id.toLowerCase().includes(search.toLowerCase()) || 
-                          (d.patientName && d.patientName.toLowerCase().includes(search.toLowerCase()));
+    const q = norm(search);
+    const matchesSearch = !q || norm(d.id).includes(q) || (!!d.patientName && norm(d.patientName).includes(q));
     const matchesStatus = filterStatus === "all" || d.status === filterStatus;
-    return matchesSearch && matchesStatus;
+    let matchesDays = true;
+    if (filterDays !== "all") {
+      const days = Number(filterDays);
+      const cutoff = new Date(); cutoff.setHours(0, 0, 0, 0); cutoff.setDate(cutoff.getDate() - (days - 1));
+      matchesDays = !!d.lastUpdate && d.lastUpdate.getTime() >= cutoff.getTime();
+    }
+    return matchesSearch && matchesStatus && matchesDays;
   });
+
+  // Keeps the field in the CB-XXXX-XXXX shape: only digits are accepted
+  const formatMac = (raw: string) => {
+    const digits = raw.replace(/^cb/i, "").replace(/\D/g, "").slice(0, 8);
+    if (!digits) return "";
+    return digits.length > 4 ? `CB-${digits.slice(0, 4)}-${digits.slice(4)}` : `CB-${digits}`;
+  };
+  const MAC_PATTERN = /^CB-\d{4}-\d{4}$/;
 
   const handleProvisionDevice = async (e: React.FormEvent) => {
     e.preventDefault();
     setProvisionError('');
     setProvisionSuccess(false);
 
-    const trimmedSerial = provisionSerial.trim();
-    if (!trimmedSerial) {
-      setProvisionError('Serial number is required.');
+    const trimmedMac = provisionMac.trim();
+    if (!trimmedMac) {
+      setProvisionError('MAC address is required.');
+      return;
+    }
+    if (!MAC_PATTERN.test(trimmedMac)) {
+      setProvisionError('MAC address must be in the format CB-XXXX-XXXX (numbers only).');
       return;
     }
 
     // Check if the serial already exists in the loaded devices list
-    const alreadyExists = devices.some(d => d.id === trimmedSerial);
+    const alreadyExists = devices.some(d => d.id === trimmedMac);
     if (alreadyExists) {
-      setProvisionError('A device with this serial number already exists.');
+      setProvisionError('A device with this MAC address already exists.');
       return;
     }
 
+    const ok = await confirm({
+      title: 'Provision this device?',
+      message: <>MAC address <span className="font-mono text-foreground">{trimmedMac}</span> will be added to the inventory.</>,
+      confirmLabel: 'Provision',
+      icon: null,
+    });
+    if (!ok) return;
+
     setProvisionLoading(true);
     try {
-      const now = new Date().toISOString();
+      const provisionedAt = new Date().toISOString();
 
       // Write to admin/inventory so signup can validate
-      const inventoryRef = ref(db, `admin/inventory/${trimmedSerial}`);
+      const inventoryRef = ref(db, `admin/inventory/${trimmedMac}`);
       await set(inventoryRef, {
-        provisionedAt: now,
-        label: provisionLabel.trim() || null,
-        notes: provisionNotes.trim() || null,
+        provisionedAt,
       });
 
       // Create the device record
-      const deviceRef = ref(db, `devices/${trimmedSerial}`);
+      const deviceRef = ref(db, `devices/${trimmedMac}`);
       await set(deviceRef, {
         status: 'offline',
         battery: 0,
-        lastUpdate: now,
         location: { lat: 0, lng: 0 },
       });
 
       setProvisionSuccess(true);
-      setProvisionSerial('');
-      setProvisionLabel('');
-      setProvisionNotes('');
+      setProvisionMac('');
 
       // Auto-close after a short delay
       setTimeout(() => {
@@ -157,9 +203,7 @@ export function AdminDevices() {
 
   const resetProvisionModal = () => {
     setShowProvisionModal(false);
-    setProvisionSerial('');
-    setProvisionLabel('');
-    setProvisionNotes('');
+    setProvisionMac('');
     setProvisionError('');
     setProvisionSuccess(false);
   };
@@ -178,7 +222,6 @@ export function AdminDevices() {
             onClick={() => setShowProvisionModal(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-medium transition-colors shadow-sm"
           >
-            <Plus className="size-4" />
             Provision Device
           </button>
 
@@ -187,7 +230,7 @@ export function AdminDevices() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Search serial or family..."
+                placeholder="Search MAC address"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 pr-4 py-2 bg-card border border-border rounded-xl text-sm focus:outline-none focus:border-primary w-full md:w-64"
@@ -206,6 +249,20 @@ export function AdminDevices() {
                 <option value="low_battery">Low Battery</option>
               </select>
             </div>
+            <div className="relative">
+              <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <select
+                value={filterDays}
+                onChange={(e) => setFilterDays(e.target.value)}
+                aria-label="Last sync period"
+                className="pl-9 pr-8 py-2 bg-card border border-border rounded-xl text-sm focus:outline-none focus:border-primary appearance-none cursor-pointer text-foreground h-[38px]"
+              >
+                <option value="all">All time</option>
+                <option value="1">Today</option>
+                <option value="7">Last 7 days</option>
+                <option value="30">Last 30 days</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -218,9 +275,9 @@ export function AdminDevices() {
             <table className="w-full text-left text-sm">
               <thead className="text-muted-foreground bg-muted/30">
                 <tr>
-                  <th className="font-medium px-6 py-4">Serial Number</th>
+                  <th className="font-medium px-6 py-4">MAC Address</th>
                   <th className="font-medium px-6 py-4">Status</th>
-                  <th className="font-medium px-6 py-4">Battery</th>
+                  <th className="font-medium px-6 py-4">Batteries</th>
                   <th className="font-medium px-6 py-4">Assigned To</th>
                   <th className="font-medium px-6 py-4">Last Sync</th>
                   <th className="font-medium px-6 py-4 text-right">Actions</th>
@@ -240,9 +297,15 @@ export function AdminDevices() {
                       <td className="px-6 py-4">
                         <StatusBadge status={device.status} />
                       </td>
-                      <td className="px-6 py-4 text-foreground flex items-center gap-2">
-                        {device.battery}%
-                        {device.battery < 20 && <Battery className="size-3 text-destructive" />}
+                      <td className="px-6 py-4 text-foreground text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-muted-foreground w-16">Wearable</span>
+                          <span className={device.wearableBattery < 20 ? "text-destructive font-medium" : ""}>{device.wearableBattery}%</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-muted-foreground w-16">Hub</span>
+                          <span className={device.hubBattery < 20 ? "text-destructive font-medium" : ""}>{device.hubBattery}%</span>
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         {device.patientName ? (
@@ -252,7 +315,7 @@ export function AdminDevices() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-muted-foreground text-xs">
-                        {new Date(device.lastUpdate).toLocaleString()}
+                        {device.lastUpdate ? device.lastUpdate.toLocaleString() : "No data yet"}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button 
@@ -278,9 +341,6 @@ export function AdminDevices() {
           <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between p-6 border-b border-border">
               <div className="flex items-center gap-3">
-                <div className="inline-flex items-center justify-center size-10 rounded-xl bg-primary/10 text-primary">
-                  <Activity className="size-5" />
-                </div>
                 <div>
                   <h3 className="text-lg font-semibold text-foreground">Device Diagnostics</h3>
                   <p className="text-xs text-muted-foreground font-mono">{selectedDevice.id}</p>
@@ -301,10 +361,14 @@ export function AdminDevices() {
                   <div><StatusBadge status={selectedDevice.status} /></div>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Battery Level</p>
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Battery Levels</p>
                   <p className="text-sm font-medium text-foreground flex items-center gap-2">
-                    {selectedDevice.battery}%
-                    {selectedDevice.battery < 20 ? <Battery className="size-4 text-destructive" /> : <Battery className="size-4 text-success" />}
+                    <Battery className={`size-4 ${selectedDevice.wearableBattery < 20 ? "text-destructive" : "text-success"}`} />
+                    Wearable {selectedDevice.wearableBattery}%
+                  </p>
+                  <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <Battery className={`size-4 ${selectedDevice.hubBattery < 20 ? "text-destructive" : "text-success"}`} />
+                    Hub {selectedDevice.hubBattery}%
                   </p>
                 </div>
                 <div className="space-y-1">
@@ -313,7 +377,7 @@ export function AdminDevices() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Last Sync</p>
-                  <p className="text-sm text-foreground">{new Date(selectedDevice.lastUpdate).toLocaleString()}</p>
+                  <p className="text-sm text-foreground">{selectedDevice.lastUpdate ? selectedDevice.lastUpdate.toLocaleString() : "No data yet"}</p>
                 </div>
               </div>
 
@@ -340,15 +404,6 @@ export function AdminDevices() {
                   </div>
                   <div className="p-3 border border-border rounded-xl flex items-center gap-3">
                     <div className="p-2 bg-success/10 text-success rounded-lg">
-                      <HardDrive className="size-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-foreground">Storage</p>
-                      <p className="text-[10px] text-muted-foreground">23% Used</p>
-                    </div>
-                  </div>
-                  <div className="p-3 border border-border rounded-xl flex items-center gap-3">
-                    <div className="p-2 bg-success/10 text-success rounded-lg">
                       <Activity className="size-4" />
                     </div>
                     <div>
@@ -364,9 +419,7 @@ export function AdminDevices() {
             </div>
 
             <div className="p-4 border-t border-border bg-muted/10 flex justify-between items-center">
-              <button className="px-4 py-2 text-primary hover:bg-primary/10 rounded-xl text-sm font-medium transition-colors">
-                Ping Device
-              </button>
+              <span />
               <button 
                 onClick={() => setSelectedDevice(null)}
                 className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground rounded-xl text-sm font-medium transition-colors"
@@ -385,9 +438,6 @@ export function AdminDevices() {
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-border">
               <div className="flex items-center gap-3">
-                <div className="inline-flex items-center justify-center size-10 rounded-xl bg-primary/10 text-primary">
-                  <PackagePlus className="size-5" />
-                </div>
                 <div>
                   <h3 className="text-lg font-semibold text-foreground">Provision Device</h3>
                   <p className="text-xs text-muted-foreground">Add a new CareBeacon to the inventory</p>
@@ -418,47 +468,19 @@ export function AdminDevices() {
               )}
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Serial Number <span className="text-destructive">*</span></label>
+                <label className="text-sm font-medium text-foreground">MAC Address <span className="text-destructive">*</span></label>
                 <input
                   type="text"
-                  value={provisionSerial}
-                  onChange={(e) => setProvisionSerial(e.target.value)}
+                  inputMode="numeric"
+                  value={provisionMac}
+                  onChange={(e) => setProvisionMac(formatMac(e.target.value))}
+                  maxLength={12}
                   className="w-full px-4 py-2.5 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm font-mono tracking-wider"
                   placeholder="CB-XXXX-XXXX"
                   required
                   disabled={provisionLoading || provisionSuccess}
                 />
-                <p className="text-[10px] text-muted-foreground">The unique serial number printed on the CareBeacon device.</p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Device Label <span className="text-muted-foreground font-normal">(optional)</span></label>
-                <input
-                  type="text"
-                  value={provisionLabel}
-                  onChange={(e) => setProvisionLabel(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm"
-                  placeholder="e.g. Batch 2 — Unit 14"
-                  disabled={provisionLoading || provisionSuccess}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Notes <span className="text-muted-foreground font-normal">(optional)</span></label>
-                <textarea
-                  value={provisionNotes}
-                  onChange={(e) => setProvisionNotes(e.target.value)}
-                  rows={3}
-                  className="w-full px-4 py-2.5 bg-input-background border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm resize-none"
-                  placeholder="Any additional notes about this device..."
-                  disabled={provisionLoading || provisionSuccess}
-                />
-              </div>
-
-              <div className="p-3 bg-muted/50 border border-border rounded-xl">
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  <strong className="text-foreground">What happens next:</strong> The device will be added to the inventory and marked as <span className="font-mono text-foreground">offline</span>. Caregivers can then register by entering this serial number during sign-up.
-                </p>
+                <p className="text-[10px] text-muted-foreground">The unique MAC address printed on the CareBeacon device.</p>
               </div>
             </form>
 
@@ -489,16 +511,14 @@ export function AdminDevices() {
                     Done
                   </>
                 ) : (
-                  <>
-                    <PackagePlus className="size-4" />
-                    Provision Device
-                  </>
+                  <>Provision Device</>
                 )}
               </button>
             </div>
           </div>
         </div>
       )}
+      {confirmDialog}
     </AdminLayout>
   );
 }

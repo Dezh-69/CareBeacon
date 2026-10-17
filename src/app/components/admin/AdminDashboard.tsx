@@ -1,170 +1,168 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router";
+import { Users, Wifi, Send, AlertTriangle, Hand, XCircle } from "lucide-react";
 import { StatusBadge } from "./StatusBadge";
 import { AdminLayout } from "./AdminLayout";
 import { db, ref, onValue } from "../../../lib/db";
+import { resolveEventTime } from "../../../lib/time";
+import { useNow } from "../../../lib/deviceStatus";
+import { eventKind, isCancelled, type EventKind } from "../../../lib/events";
+import { familyDeviceId, personName, batteryLevels, deviceState } from "./adminData";
+import { buildRows } from "./deliveryModel";
 
 interface Family {
   id: string;
   name: string;
   deviceId: string;
   status: "online" | "offline" | "low_battery";
-  battery: string;
+  wearableBattery: string;
+  hubBattery: string;
   createdAt: string;
 }
 
+type IncidentKind = EventKind | "cancelled";
+
 interface Incident {
   id: string;
-  type: string;
+  kind: IncidentKind;
   person: string;
   time: string;
-  statusText: string;
-  typeColor: string;
   timestamp: Date;
 }
+
+const KIND_UI: Record<IncidentKind, { label: string; Icon: typeof AlertTriangle; box: string }> = {
+  fall: { label: "Fall detected", Icon: AlertTriangle, box: "bg-destructive/10 text-destructive" },
+  sos: { label: "Manual SOS", Icon: Hand, box: "bg-warning/10 text-warning" },
+  cancelled: { label: "Cancelled", Icon: XCircle, box: "bg-muted text-muted-foreground" },
+};
+
+const FILTERS: { id: "all" | IncidentKind; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "fall", label: "Fall" },
+  { id: "sos", label: "Manual SOS" },
+  { id: "cancelled", label: "Cancelled" },
+];
 
 export function AdminDashboard() {
   const [families, setFamilies] = useState<Family[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [incidentFilter, setIncidentFilter] = useState<"all" | IncidentKind>("all");
   const [stats, setStats] = useState({
     totalFamilies: 0,
     devicesOnline: 0,
     totalDevices: 0,
-    openIncidents: 0,
+    alertsTotal: 0,
+    alertsDelivered: 0,
   });
 
+  const now = useNow(5000);
+  const nowRef = useRef(now);
+  nowRef.current = now;
+  const recomputeRef = useRef<(() => void) | null>(null);
+  // re-evaluate online/offline every few seconds WITHOUT re-subscribing to Firebase (re-subscribing made the page flicker)
+  useEffect(() => { recomputeRef.current?.(); }, [now]);
+
   useEffect(() => {
-    // 1. Fetch Families and their Devices
-    const familiesRef = ref(db, 'families');
-    const devicesRef = ref(db, 'devices');
-    const eventsRef = ref(db, 'events');
-    
-    // Using a single large listener approach for dashboard, in production we might use specific queries
-    // or Cloud Functions to aggregate this.
-    
     let currentFamilies: any = {};
     let currentDevices: any = {};
-    
-    const unsubscribeFamilies = onValue(familiesRef, (snapshot) => {
-      if (snapshot.exists()) {
-        currentFamilies = snapshot.val();
-        updateDashboard(currentFamilies, currentDevices);
-      }
-    });
+    let currentEvents: any = {};
 
-    const unsubscribeDevices = onValue(devicesRef, (snapshot) => {
-      if (snapshot.exists()) {
-        currentDevices = snapshot.val();
-        updateDashboard(currentFamilies, currentDevices);
-      }
-    });
-    
-    const unsubscribeEvents = onValue(eventsRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const eventsData = snapshot.val();
-        const parsedIncidents: Incident[] = [];
-        let openCount = 0;
-        
-        // eventsData is keyed by deviceId
-        Object.keys(eventsData).forEach(deviceId => {
-          const deviceEvents = eventsData[deviceId];
-          // get family name for this device
-          const family = Object.values(currentFamilies).find((f: any) => f.deviceId === deviceId) as any;
-          const personName = family ? family.patientName : "Unknown Patient";
-          
-          Object.keys(deviceEvents).forEach(eventId => {
-            const ev = deviceEvents[eventId];
-            
-            if (ev.status === 'pending' || ev.status === 'emergency' || ev.status === 'unconfirmed') {
-              openCount++;
-            }
-            
-            let typeColor = "bg-primary/15";
-            let typeText = "Event";
-            
-            if (ev.status === 'pending' || ev.status === 'unconfirmed') {
-              typeColor = "bg-destructive/15";
-              typeText = "Fall detected (Unconfirmed)";
-            } else if (ev.status === 'emergency') {
-              typeColor = "bg-warning/15";
-              typeText = "SOS Button Pressed";
-            } else if (ev.status === 'confirmed') {
-              typeColor = "bg-destructive/15";
-              typeText = "Fall Confirmed";
-            } else if (ev.status === 'resolved') {
-              typeColor = "bg-success/15";
-              typeText = "Resolved";
-            } else if (ev.status === 'cancelled') {
-              typeColor = "bg-muted";
-              typeText = "Cancelled";
-            }
-
-            parsedIncidents.push({
-              id: eventId,
-              type: typeText,
-              person: personName,
-              time: new Date(ev.timestamp).toLocaleString(),
-              timestamp: new Date(ev.timestamp),
-              statusText: ev.contactNotified ? `Notified: ${ev.contactNotified}` : '',
-              typeColor
-            });
-          });
-        });
-        
-        // Sort by newest first, take top 5
-        parsedIncidents.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-        
-        setIncidents(parsedIncidents.slice(0, 5));
-        setStats(prev => ({ ...prev, openIncidents: openCount }));
-      }
-    });
-
-    const updateDashboard = (fams: any, devs: any) => {
+    const recompute = () => {
+      // ---- Registered families ----
       const parsedFamilies: Family[] = [];
+      const seenDevices = new Set<string>();
       let onlineCount = 0;
-      let totalDevs = 0;
-      
-      Object.keys(fams).forEach(key => {
-        const f = fams[key];
-        const deviceId = f.deviceId;
-        const device = devs[deviceId];
-        
-        let status: "online" | "offline" | "low_battery" = "offline";
-        let battery = "—";
-        
-        if (device) {
-          totalDevs++;
-          battery = `${Math.round(device.battery || 0)}%`;
-          
-          if (device.status === 'offline') {
-            status = 'offline';
-          } else if (device.battery < 20) {
-            status = 'low_battery';
-            onlineCount++;
-          } else {
-            status = 'online';
-            onlineCount++;
+
+      Object.keys(currentFamilies).forEach(key => {
+        const f = currentFamilies[key] || {};
+        const deviceId = familyDeviceId(f);
+        const device = deviceId ? currentDevices[deviceId] : undefined;
+
+        let status: Family["status"] = "offline";
+        let wearable = "—";
+        let hub = "—";
+
+        if (deviceId) {
+          const levels = batteryLevels(device);
+          wearable = `${Math.round(levels.wearable)}%`;
+          hub = `${Math.round(levels.hub)}%`;
+          status = deviceState(device, nowRef.current);
+          // count each physical device once, even if linked to several families
+          if (!seenDevices.has(deviceId)) {
+            seenDevices.add(deviceId);
+            if (status !== 'offline') onlineCount++;
           }
         }
-        
+
         parsedFamilies.push({
           id: key,
-          name: f.patientName || "Unknown",
+          name: personName(f, device),
           deviceId: deviceId || "Unlinked",
           status,
-          battery,
+          wearableBattery: wearable,
+          hubBattery: hub,
           createdAt: f.createdAt
         });
       });
-      
+
+      // Newest registrations first
+      parsedFamilies.sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0));
+
+      // ---- Recent incidents ----
+      const parsedIncidents: Incident[] = [];
+
+      Object.keys(currentEvents).forEach(deviceId => {
+        const deviceEvents = currentEvents[deviceId] || {};
+        const familyEntry = Object.values(currentFamilies).find((f: any) => familyDeviceId(f) === deviceId);
+        const person = familyEntry ? personName(familyEntry, currentDevices[deviceId]) : (currentDevices[deviceId]?.user?.name || deviceId);
+
+        Object.keys(deviceEvents).forEach(eventId => {
+          const ev = deviceEvents[eventId];
+          if (!ev || typeof ev !== 'object') return;
+
+          // Device writes millis() uptime as timestamp -> use the real time from the Firebase key
+          const when = resolveEventTime(eventId, ev.timestamp);
+
+          parsedIncidents.push({
+            id: `${deviceId}-${eventId}`,
+            kind: isCancelled(ev) ? "cancelled" : eventKind(ev),
+            person,
+            time: when.toLocaleString(),
+            timestamp: when,
+          });
+        });
+      });
+
+      // Newest first
+      parsedIncidents.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+      // ---- Alerts delivered: share of fall / SOS alerts whose SMS went out ----
+      const alertRows = buildRows(currentEvents, currentFamilies);
+
       setFamilies(parsedFamilies);
-      setStats(prev => ({
-        ...prev,
-        totalFamilies: Object.keys(fams).length,
+      setIncidents(parsedIncidents);
+      setStats({
+        totalFamilies: Object.keys(currentFamilies).length,
         devicesOnline: onlineCount,
-        totalDevices: totalDevs
-      }));
+        totalDevices: seenDevices.size,
+        alertsTotal: alertRows.length,
+        alertsDelivered: alertRows.filter(r => r.delivered).length,
+      });
     };
+
+    recomputeRef.current = recompute;
+    const unsubscribeFamilies = onValue(ref(db, 'families'), (snapshot) => {
+      currentFamilies = snapshot.val() || {};
+      recompute();
+    });
+    const unsubscribeDevices = onValue(ref(db, 'devices'), (snapshot) => {
+      currentDevices = snapshot.val() || {};
+      recompute();
+    });
+    const unsubscribeEvents = onValue(ref(db, 'events'), (snapshot) => {
+      currentEvents = snapshot.val() || {};
+      recompute();
+    });
 
     return () => {
       unsubscribeFamilies();
@@ -172,6 +170,8 @@ export function AdminDashboard() {
       unsubscribeEvents();
     };
   }, []);
+
+  const shownIncidents = incidents.filter(i => incidentFilter === "all" || i.kind === incidentFilter).slice(0, 5);
 
   return (
     <AdminLayout>
@@ -183,22 +183,33 @@ export function AdminDashboard() {
         </div>
 
         {/* Stat Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-card p-4 sm:p-6 rounded-xl border border-border flex flex-col gap-1 sm:gap-2 shadow-sm">
-            <span className="text-xs sm:text-sm text-muted-foreground">Families</span>
-            <span className="text-xl sm:text-2xl font-semibold">{stats.totalFamilies}</span>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div className="bg-card p-4 sm:p-6 rounded-xl border border-border flex items-center gap-4 shadow-sm">
+            <div className="p-3 bg-primary/10 text-primary rounded-xl">
+              <Users className="size-5 sm:size-6" />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs sm:text-sm text-muted-foreground">Families</span>
+              <span className="text-xl sm:text-2xl font-semibold">{stats.totalFamilies}</span>
+            </div>
           </div>
-          <div className="bg-card p-4 sm:p-6 rounded-xl border border-border flex flex-col gap-1 sm:gap-2 shadow-sm">
-            <span className="text-xs sm:text-sm text-muted-foreground">Devices online</span>
-            <span className="text-xl sm:text-2xl font-semibold">{stats.devicesOnline}/{stats.totalDevices}</span>
+          <div className="bg-card p-4 sm:p-6 rounded-xl border border-border flex items-center gap-4 shadow-sm">
+            <div className="p-3 bg-success/10 text-success rounded-xl">
+              <Wifi className="size-5 sm:size-6" />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs sm:text-sm text-muted-foreground">Devices online</span>
+              <span className="text-xl sm:text-2xl font-semibold">{stats.devicesOnline}/{stats.totalDevices}</span>
+            </div>
           </div>
-          <div className="bg-card p-4 sm:p-6 rounded-xl border border-border flex flex-col gap-1 sm:gap-2 shadow-sm">
-            <span className="text-xs sm:text-sm text-muted-foreground">Open incidents</span>
-            <span className="text-xl sm:text-2xl font-semibold">{stats.openIncidents}</span>
-          </div>
-          <div className="bg-card p-4 sm:p-6 rounded-xl border border-border flex flex-col gap-1 sm:gap-2 shadow-sm">
-            <span className="text-xs sm:text-sm text-muted-foreground">Alerts delivered</span>
-            <span className="text-xl sm:text-2xl font-semibold">100%</span>
+          <div className="bg-card p-4 sm:p-6 rounded-xl border border-border flex items-center gap-4 shadow-sm">
+            <div className="p-3 bg-primary/10 text-primary rounded-xl">
+              <Send className="size-5 sm:size-6" />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs sm:text-sm text-muted-foreground">Alerts delivered</span>
+              <span className="text-xl sm:text-2xl font-semibold">{stats.alertsDelivered}/{stats.alertsTotal}</span>
+            </div>
           </div>
         </div>
 
@@ -211,19 +222,20 @@ export function AdminDashboard() {
             </Link>
           </div>
           <div className="w-full overflow-x-auto">
-            <table className="w-full text-left text-xs sm:text-sm min-w-[480px]">
+            <table className="w-full text-left text-xs sm:text-sm min-w-[560px]">
               <thead className="text-muted-foreground bg-muted/30">
                 <tr>
                   <th className="font-medium px-3 sm:px-6 py-3 sm:py-4">Person monitored</th>
-                  <th className="font-medium px-3 sm:px-6 py-3 sm:py-4">Device Serial</th>
-                  <th className="font-medium px-3 sm:px-6 py-3 sm:py-4">Battery</th>
+                  <th className="font-medium px-3 sm:px-6 py-3 sm:py-4">MAC Address</th>
+                  <th className="font-medium px-3 sm:px-6 py-3 sm:py-4">Wearable Battery</th>
+                  <th className="font-medium px-3 sm:px-6 py-3 sm:py-4">Hub Battery</th>
                   <th className="font-medium px-3 sm:px-6 py-3 sm:py-4">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {families.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">
+                    <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">
                       No families registered yet
                     </td>
                   </tr>
@@ -232,7 +244,8 @@ export function AdminDashboard() {
                     <tr key={family.id} className="hover:bg-muted/50 transition-colors">
                       <td className="px-3 sm:px-6 py-3 sm:py-4 text-foreground font-medium">{family.name}</td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4 text-muted-foreground font-mono text-xs">{family.deviceId}</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-muted-foreground">{family.battery}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-muted-foreground">{family.wearableBattery}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-muted-foreground">{family.hubBattery}</td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4">
                         <StatusBadge status={family.status} />
                       </td>
@@ -246,34 +259,48 @@ export function AdminDashboard() {
 
         {/* Recent Incidents Panel */}
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-          <div className="p-4 sm:p-6 border-b border-border">
+          <div className="p-4 sm:p-6 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h2 className="text-base sm:text-lg font-medium text-foreground">Recent incidents</h2>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter recent incidents">
+              {FILTERS.map(f => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setIncidentFilter(f.id)}
+                  aria-pressed={incidentFilter === f.id}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                    incidentFilter === f.id
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-card text-foreground border-border hover:bg-muted"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="flex flex-col">
-            {incidents.length === 0 ? (
+            {shownIncidents.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
                 No recent incidents
               </div>
             ) : (
-              incidents.map((incident) => (
-                <div key={incident.id} className="flex items-start gap-3 sm:gap-4 p-4 sm:p-6 hover:bg-muted/50 transition-colors border-b border-border last:border-0">
-                  <div className={`mt-1 size-3 rounded ${incident.typeColor} flex-shrink-0`} />
-                  <div className="flex flex-col">
-                    <div className="text-sm font-medium text-foreground">
-                      {incident.type} — <span className="font-normal text-muted-foreground">{incident.person}</span>
+              shownIncidents.map((incident) => {
+                const ui = KIND_UI[incident.kind];
+                return (
+                  <div key={incident.id} className="flex items-center gap-3 sm:gap-4 p-4 sm:p-6 hover:bg-muted/50 transition-colors border-b border-border last:border-0">
+                    <div className={`flex items-center justify-center size-9 rounded-xl shrink-0 ${ui.box}`}>
+                      <ui.Icon className="size-4" aria-hidden="true" />
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                      <span>{incident.time}</span>
-                      {incident.statusText && (
-                        <>
-                          <span>&middot;</span>
-                          <span>{incident.statusText}</span>
-                        </>
-                      )}
+                    <div className="flex flex-col">
+                      <div className="text-sm font-medium text-foreground">
+                        {ui.label} — <span className="font-normal text-muted-foreground">{incident.person}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">{incident.time}</div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
